@@ -49,7 +49,20 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>.
+Open <http://localhost:3000>. The store lives in memory on `globalThis`, which is fine for one Node process.
+
+## Deploy on Vercel
+
+The store is held on `globalThis`. Local dev works because every request hits the same Node process — but Vercel's serverless functions don't share `globalThis` across invocations, so without persistence a `submit` action mutates instance A and the next `/admin/approvals` render lands on instance B and sees nothing.
+
+Persistence layer ([src/lib/domain/persistence.ts](src/lib/domain/persistence.ts)) loads the store snapshot from **Upstash Redis** at the start of every request and saves it back after every mutation.
+
+Setup:
+
+1. Add **Upstash Redis** to the project via Vercel Marketplace → `Storage` → Upstash. Vercel auto-injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` into the project's env vars (also accepts the legacy `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
+2. Redeploy. The seeded data populates Redis on the first request.
+
+If the env vars aren't set, the persistence layer no-ops silently and you fall back to ephemeral in-memory state — fine for local dev, broken on serverless.
 
 The store is seeded with one OPEN April 2026 run, one CLOSED March 2026 run, 9 monthly employees, 3 non-monthly employees, sample bonuses/deductions, and one active loan on Tim David.
 

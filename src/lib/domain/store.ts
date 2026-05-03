@@ -16,7 +16,7 @@ import type {
   EmployeePaymentStatus,
 } from "./types";
 
-interface Store {
+export interface Store {
   employees: Employee[];
   loans: Loan[];
   runs: PayrollRun[];
@@ -210,10 +210,36 @@ function build(): Store {
 
 const G = globalThis as unknown as { __somionStore?: Store };
 if (!G.__somionStore) G.__somionStore = build();
-const s = G.__somionStore;
+
+// `s` is a Proxy over G.__somionStore so every read in the db methods below
+// goes through the *current* snapshot. After persistence.loadStore() swaps
+// the underlying object on G, all subsequent `s.bonuses` / `s.runs` reads
+// see the loaded data without rebuilding the db object.
+const s = new Proxy({} as Store, {
+  get(_t, prop: string | symbol) {
+    if (!G.__somionStore) G.__somionStore = build();
+    return (G.__somionStore as unknown as Record<string | symbol, unknown>)[prop];
+  },
+  set(_t, prop: string | symbol, value: unknown) {
+    if (!G.__somionStore) G.__somionStore = build();
+    (G.__somionStore as unknown as Record<string | symbol, unknown>)[prop] = value;
+    return true;
+  },
+});
+
+// Accessors used by the persistence layer. Underscored so it's clear they
+// aren't part of the public domain API.
+export function _internalGetStore(): Store {
+  if (!G.__somionStore) G.__somionStore = build();
+  return G.__somionStore;
+}
+export function _internalSetStore(next: Store) {
+  G.__somionStore = next;
+}
 
 function id(prefix: string) {
-  return `${prefix}_${++s.nextId}`;
+  s.nextId += 1;
+  return `${prefix}_${s.nextId}`;
 }
 function nowIso() {
   return new Date().toISOString();

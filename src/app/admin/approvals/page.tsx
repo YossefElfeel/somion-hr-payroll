@@ -4,9 +4,15 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { RunStateBadge } from "@/components/payroll/run-state-badge";
 import { db } from "@/lib/domain/store";
+import { loadStore } from "@/lib/domain/persistence";
+
+// Always read fresh from the persisted store. Without this, Next prerenders
+// at build time using only the seed data and never picks up live mutations.
+export const dynamic = "force-dynamic";
 import { computeTotals, formatCHF } from "@/lib/domain/totals";
 
-export default function AdminApprovalsPage() {
+export default async function AdminApprovalsPage() {
+  await loadStore();
   // Show every run that has at least one SUBMITTED employee waiting for review.
   // Multiple HR batches across days produce multiple cards — or one card with a
   // changing count, since a single run can have many SUBMITTED batches over time.

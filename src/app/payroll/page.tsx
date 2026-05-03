@@ -4,6 +4,7 @@ import { PeriodPicker } from "@/components/payroll/period-picker";
 import { OverviewTable } from "@/components/payroll/overview-table";
 import { StartRunButton } from "@/components/payroll/start-run-button";
 import { db } from "@/lib/domain/store";
+import { loadStore } from "@/lib/domain/persistence";
 import type { PayrollFrequency } from "@/lib/domain/types";
 import Link from "next/link";
 
@@ -24,6 +25,7 @@ export default async function PayrollPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await loadStore();
   const sp = await searchParams;
   const freq = (sp.freq as PayrollFrequency) ?? "MONTHLY";
   const period = sp.period ?? defaultPeriod(freq);
