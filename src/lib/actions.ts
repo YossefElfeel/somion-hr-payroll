@@ -132,6 +132,13 @@ export async function freezeRun(runId: string, source: "MANUAL" | "AUTO" = "MANU
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
+  // Idempotent: a double-click or stale-UI re-submit shouldn't crash. If the
+  // run is already FROZEN we silently return — refresh() will still revalidate
+  // so the UI catches up.
+  if (run.state === "FROZEN") {
+    await refresh();
+    return;
+  }
   if (!canTransitionRun(run.state, "FROZEN")) {
     throw new Error(`Cannot freeze from ${run.state}`);
   }
@@ -148,6 +155,10 @@ export async function reopenRun(runId: string) {
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
+  if (run.state === "OPEN") {
+    await refresh();
+    return;
+  }
   if (!canTransitionRun(run.state, "OPEN")) {
     throw new Error(`Cannot re-open from ${run.state}`);
   }
