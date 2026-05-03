@@ -230,7 +230,7 @@ export function ApprovalReview({ run, rows, audit }: Props) {
             );
           })}
 
-          {run.state === "PENDING_APPROVAL" && (
+          {run.state === "FROZEN" && rows.length > 0 && (
             <Card>
               <CardBody>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">
