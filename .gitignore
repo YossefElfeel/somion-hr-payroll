@@ -12,3 +12,4 @@ build/
 pdf_pages*
 .claude/
 .vercel
+*.tsbuildinfo
