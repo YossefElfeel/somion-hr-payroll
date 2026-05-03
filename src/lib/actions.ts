@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "./domain/store";
+import { loadStore, saveStore } from "./domain/persistence";
 import { canTransitionRun, canTransitionEmployee } from "./domain/state-machine";
 import type { Role } from "./domain/types";
 
@@ -14,7 +15,16 @@ function actor(role: Role) {
   };
 }
 
-function refresh() {
+// Every action calls `await init()` first and `await refresh()` last so the
+// in-memory store is hydrated from Redis before mutation and persisted back
+// after. On serverless this is the only thing keeping state coherent across
+// invocations; locally with no Redis configured both calls are no-ops.
+async function init() {
+  await loadStore();
+}
+
+async function refresh() {
+  await saveStore();
   revalidatePath("/payroll");
   revalidatePath("/admin/approvals");
   revalidatePath("/finance/queue");
@@ -29,12 +39,13 @@ export async function startRun(input: {
   periodKey: string;
   periodLabel: string;
 }) {
+  await init();
   const existing = db.getRunByPeriod(input.frequency, input.periodKey);
   if (existing) throw new Error("Run already exists for this period");
   const run = db.createRun(input);
   db.attachActiveLoanInstallments(run.id);
   db.appendAudit({ runId: run.id, ...actor("HR"), action: "Run created" });
-  refresh();
+  await refresh();
   return run;
 }
 
@@ -46,6 +57,7 @@ export async function addBonus(input: {
   amount: number;
   reason: string;
 }) {
+  await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -72,7 +84,7 @@ export async function addBonus(input: {
     action: `Added bonus ${input.amount} CHF`,
     note: input.reason,
   });
-  refresh();
+  await refresh();
   return b;
 }
 
@@ -82,6 +94,7 @@ export async function addDeduction(input: {
   amount: number;
   reason: string;
 }) {
+  await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -109,15 +122,23 @@ export async function addDeduction(input: {
     action: `Added deduction ${input.amount} CHF`,
     note: input.reason,
   });
-  refresh();
+  await refresh();
   return d;
 }
 
 // ---- Run state transitions ----
 
 export async function freezeRun(runId: string, source: "MANUAL" | "AUTO" = "MANUAL") {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
+  // Idempotent: a double-click or stale-UI re-submit shouldn't crash. If the
+  // run is already FROZEN we silently return — refresh() will still revalidate
+  // so the UI catches up.
+  if (run.state === "FROZEN") {
+    await refresh();
+    return;
+  }
   if (!canTransitionRun(run.state, "FROZEN")) {
     throw new Error(`Cannot freeze from ${run.state}`);
   }
@@ -127,24 +148,30 @@ export async function freezeRun(runId: string, source: "MANUAL" | "AUTO" = "MANU
     ...actor("HR"),
     action: source === "AUTO" ? "Auto-frozen on cutoff day" : "Manually frozen",
   });
-  refresh();
+  await refresh();
 }
 
 export async function reopenRun(runId: string) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
+  if (run.state === "OPEN") {
+    await refresh();
+    return;
+  }
   if (!canTransitionRun(run.state, "OPEN")) {
     throw new Error(`Cannot re-open from ${run.state}`);
   }
   db.setRunState(runId, "OPEN");
   db.appendAudit({ runId, ...actor("HR"), action: "Re-opened run" });
-  refresh();
+  await refresh();
 }
 
 // Submit a SUBSET of employees for approval. Run state stays FROZEN; only the
 // selected employees flip to SUBMITTED. HR can call this multiple times across
 // days — each call is an independent batch.
 export async function submitForApproval(runId: string, employeeIds: string[], note?: string) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "FROZEN") {
@@ -169,7 +196,7 @@ export async function submitForApproval(runId: string, employeeIds: string[], no
     action: `Submitted ${count} employee(s) for approval`,
     note,
   });
-  refresh();
+  await refresh();
 }
 
 // Admin reviews any subset of currently-SUBMITTED employees. Decisions are
@@ -179,6 +206,7 @@ export async function adminReview(input: {
   decisions: { employeeId: string; decision: "APPROVE" | "FLAG"; note?: string }[];
   globalNote?: string;
 }) {
+  await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
   let approvedCount = 0;
@@ -218,13 +246,14 @@ export async function adminReview(input: {
       note: f.note,
     });
   }
-  refresh();
+  await refresh();
 }
 
 // Re-submit ALL currently-flagged rows on a run, in one shot. The submit
 // action also handles this case, but exposing it as a dedicated server action
 // lets HR re-submit without having to re-select the rows manually.
 export async function resubmitFlagged(runId: string) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "FROZEN") {
@@ -241,12 +270,13 @@ export async function resubmitFlagged(runId: string) {
     ...actor("HR"),
     action: `Re-submitted ${flagged.length} flagged employee(s)`,
   });
-  refresh();
+  await refresh();
 }
 
 // HR sends a SUBSET of APPROVED employees to the finance queue. Multiple
 // payment batches per run are supported.
 export async function paySelected(runId: string, employeeIds: string[]) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "FROZEN") {
@@ -271,7 +301,7 @@ export async function paySelected(runId: string, employeeIds: string[]) {
     ...actor("HR"),
     action: `Sent ${queued} employee(s) to Finance for payment`,
   });
-  refresh();
+  await refresh();
 }
 
 // ---- Loans ----
@@ -287,6 +317,7 @@ export async function addLoan(input: {
   monthlyInstallment: number;
   reason: string;
 }) {
+  await init();
   if (input.totalAmount <= 0) throw new Error("Total amount must be > 0");
   if (input.durationMonths <= 0) throw new Error("Duration must be > 0");
   if (input.monthlyInstallment <= 0) throw new Error("Monthly installment must be > 0");
@@ -330,7 +361,7 @@ export async function addLoan(input: {
     action: `Created loan ${input.totalAmount} CHF · auto-attached installment ${input.monthlyInstallment} CHF`,
     note: input.reason,
   });
-  refresh();
+  await refresh();
   return loan;
 }
 
@@ -340,6 +371,7 @@ export async function updateLoan(input: {
   durationMonths: number;
   monthlyInstallment: number;
 }) {
+  await init();
   if (input.monthlyInstallment <= 0) throw new Error("Monthly installment must be > 0");
   if (input.durationMonths <= 0) throw new Error("Duration must be > 0");
   const expected = input.monthlyInstallment * input.durationMonths;
@@ -353,7 +385,7 @@ export async function updateLoan(input: {
     durationMonths: input.durationMonths,
     monthlyInstallment: input.monthlyInstallment,
   });
-  refresh();
+  await refresh();
 }
 
 // One-off extra repayment: adds a new EXTRA_LOAN_REPAYMENT deduction line to
@@ -364,6 +396,7 @@ export async function addExtraLoanRepayment(input: {
   loanId: string;
   amount: number;
 }) {
+  await init();
   if (input.amount <= 0) throw new Error("Amount must be > 0");
   const loan = db.getLoan(input.loanId);
   if (!loan) throw new Error("Loan not found");
@@ -385,7 +418,7 @@ export async function addExtraLoanRepayment(input: {
     ...actor("HR"),
     action: `Added extra loan repayment ${input.amount} CHF`,
   });
-  refresh();
+  await refresh();
 }
 
 export async function updateBonus(input: {
@@ -394,6 +427,7 @@ export async function updateBonus(input: {
   amount: number;
   reason: string;
 }) {
+  await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -417,7 +451,7 @@ export async function updateBonus(input: {
     action: `Edited a bonus → ${input.amount} CHF`,
     note: input.reason,
   });
-  refresh();
+  await refresh();
 }
 
 export async function updateDeduction(input: {
@@ -426,6 +460,7 @@ export async function updateDeduction(input: {
   amount: number;
   reason: string;
 }) {
+  await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -457,10 +492,11 @@ export async function updateDeduction(input: {
     action: `Edited a deduction → ${input.amount} CHF`,
     note: input.reason,
   });
-  refresh();
+  await refresh();
 }
 
 export async function deleteBonus(runId: string, bonusId: string) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -468,10 +504,11 @@ export async function deleteBonus(runId: string, bonusId: string) {
   }
   db.removeBonus(bonusId);
   db.appendAudit({ runId, ...actor("HR"), action: "Removed a bonus" });
-  refresh();
+  await refresh();
 }
 
 export async function deleteDeduction(runId: string, deductionId: string) {
+  await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
   if (run.state !== "OPEN") {
@@ -490,12 +527,13 @@ export async function deleteDeduction(runId: string, deductionId: string) {
   }
   db.removeDeduction(deductionId);
   db.appendAudit({ runId, ...actor("HR"), action: "Removed a deduction" });
-  refresh();
+  await refresh();
 }
 
 // Mark a single employee EXCLUDED for this run (e.g. on unpaid leave). Allowed
 // any time before they enter the finance queue.
 export async function excludeEmployee(runId: string, employeeId: string) {
+  await init();
   const item = db.getRunItem(runId, employeeId);
   if (!item) throw new Error("Item not found");
   if (!canTransitionEmployee(item.status, "EXCLUDED")) {
@@ -507,12 +545,13 @@ export async function excludeEmployee(runId: string, employeeId: string) {
     ...actor("HR"),
     action: `Excluded employee ${employeeId} from this run`,
   });
-  refresh();
+  await refresh();
 }
 
 // ---- Finance ----
 
 export async function markPaid(runId: string, employeeId: string) {
+  await init();
   const item = db.getRunItem(runId, employeeId);
   if (!item) throw new Error("Item not found");
   if (!canTransitionEmployee(item.status, "PAID")) {
@@ -532,7 +571,7 @@ export async function markPaid(runId: string, employeeId: string) {
     action: `Marked employee ${employeeId} as PAID`,
   });
   maybeCloseRun(runId);
-  refresh();
+  await refresh();
 }
 
 function maybeCloseRun(runId: string) {

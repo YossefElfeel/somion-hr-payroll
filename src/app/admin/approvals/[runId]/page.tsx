@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { ApprovalReview } from "@/components/admin/approval-review";
 import { db } from "@/lib/domain/store";
+import { loadStore } from "@/lib/domain/persistence";
 
 interface Params {
   runId: string;
@@ -12,6 +13,7 @@ export default async function ApprovalDetailPage({
 }: {
   params: Promise<Params>;
 }) {
+  await loadStore();
   const { runId } = await params;
   const run = db.getRun(runId);
   if (!run) notFound();

@@ -1,8 +1,12 @@
 import { AppShell } from "@/components/shell/app-shell";
 import { FinanceQueue } from "@/components/finance/finance-queue";
 import { db } from "@/lib/domain/store";
+import { loadStore } from "@/lib/domain/persistence";
 
-export default function FinanceQueuePage() {
+export const dynamic = "force-dynamic";
+
+export default async function FinanceQueuePage() {
+  await loadStore();
   // Show every run that has at least one item Finance can act on (or has acted on).
   // With per-employee batches, a single run can be in this queue many times across days.
   const groups = db
