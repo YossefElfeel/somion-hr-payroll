@@ -65,6 +65,7 @@ export function ApprovalReview({ run, rows, audit }: Props) {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
+            title="Marks every row Approve and submits in one click"
             disabled={pending || rows.length === 0}
             onClick={() => {
               // Mark every row as APPROVE in local state, then submit

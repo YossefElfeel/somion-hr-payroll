@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertCircle, Pencil, Plus, Trash2, X, Wallet } from "lucide-react";
+import { AlertCircle, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
@@ -66,13 +66,6 @@ export function EmployeeDrawer({
       onClose={onClose}
       title={employee.name}
       size="lg"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            <X size={14} /> Close
-          </Button>
-        </>
-      }
     >
       <div className="space-y-5">
         {/* Header summary */}

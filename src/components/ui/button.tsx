@@ -35,7 +35,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        // Disabled flattens to a neutral grey so it's visibly inert — not a
+        // 50% ghost of an active button. Overrides variant colours.
+        "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:hover:bg-slate-100",
         variantClasses[variant],
         sizeClasses[size],
         className,

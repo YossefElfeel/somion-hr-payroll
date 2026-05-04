@@ -83,7 +83,7 @@ export function employeeStatusLabel(status: EmployeePaymentStatus): string {
     SUBMITTED: "Submitted",
     CHANGES_NEEDED: "Changes",
     APPROVED: "Approved",
-    IN_FINANCE_QUEUE: "In queue",
+    IN_FINANCE_QUEUE: "Queued",
     PAID: "Paid",
     EXCLUDED: "Excluded",
   }[status];

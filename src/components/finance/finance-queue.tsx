@@ -115,7 +115,7 @@ export function FinanceQueue({ groups }: { groups: Group[] }) {
               : "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           }
         >
-          All months ({groups.length})
+          Show all
         </button>
       </div>
 
@@ -234,7 +234,7 @@ function RunGroup({ group }: { group: Group }) {
           {queueItems.length > 0 && (
             <Button
               size="sm"
-              variant="primary"
+              variant="outline"
               disabled={pending}
               onClick={() => payIds(queueIds)}
               title={`Pay all ${queueItems.length} pending (${formatCHF(totalToPay)})`}
@@ -292,6 +292,16 @@ function RunGroup({ group }: { group: Group }) {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={it.status} />
+                    {it.status === "PAID" && it.paidAt && (
+                      <div className="mt-0.5 text-[10px] text-slate-500">
+                        {new Date(it.paidAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">

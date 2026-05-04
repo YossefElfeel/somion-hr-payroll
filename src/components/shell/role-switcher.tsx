@@ -7,24 +7,38 @@ import type { Role } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "somion.role";
+const ROLE_EVENT = "somion.role.changed";
 
 export function getStoredRole(): Role {
   if (typeof window === "undefined") return "HR";
   return (localStorage.getItem(STORAGE_KEY) as Role) ?? "HR";
 }
 
-export function RoleSwitcher() {
-  const router = useRouter();
+// Subscribe to role changes from anywhere in the app. Fires on the custom
+// event the switcher dispatches, plus the native `storage` event (other tabs).
+export function useCurrentRole(): Role {
   const [role, setRole] = useState<Role>("HR");
-  const [open, setOpen] = useState(false);
-
   useEffect(() => {
     setRole(getStoredRole());
+    const onChange = () => setRole(getStoredRole());
+    window.addEventListener(ROLE_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener(ROLE_EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
   }, []);
+  return role;
+}
+
+export function RoleSwitcher() {
+  const router = useRouter();
+  const role = useCurrentRole();
+  const [open, setOpen] = useState(false);
 
   const setStored = (next: Role) => {
-    setRole(next);
     localStorage.setItem(STORAGE_KEY, next);
+    window.dispatchEvent(new Event(ROLE_EVENT));
     setOpen(false);
     if (next === "HR") router.push("/payroll");
     if (next === "ADMIN") router.push("/admin/approvals");
