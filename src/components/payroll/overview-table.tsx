@@ -539,11 +539,23 @@ function AllTab({
                   })()}
                 </td>
                 <td className="px-4 py-3 text-right text-slate-700">
-                  {t.loanInstallmentTotal + t.extraLoanRepaymentTotal > 0
-                    ? `-${formatCHF(
-                        t.loanInstallmentTotal + t.extraLoanRepaymentTotal,
-                      )}`
-                    : "--"}
+                  {(() => {
+                    const loanTotal = t.loanInstallmentTotal + t.extraLoanRepaymentTotal;
+                    if (loanTotal <= 0) return "--";
+                    const loanCount = empDeductions.filter(
+                      (d) => d.source === "LOAN_INSTALLMENT" || d.source === "EXTRA_LOAN_REPAYMENT",
+                    ).length;
+                    return (
+                      <span title={`${loanCount} loan line${loanCount === 1 ? "" : "s"}`}>
+                        -{formatCHF(loanTotal)}
+                        {loanCount > 1 && (
+                          <span className="ml-1 text-xs text-slate-400">
+                            ({loanCount})
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3 text-right font-medium text-slate-900">
                   {formatCHF(t.total)}
@@ -551,9 +563,12 @@ function AllTab({
                 <td className="px-4 py-3">
                   <StatusBadge status={item.status} />
                   {flagged && item.changeNote && (
-                    <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-800 max-w-[280px]">
+                    <div
+                      className="mt-1.5 flex items-start gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-800 max-w-[280px]"
+                      title={item.changeNote}
+                    >
                       <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                      <span className="leading-snug">
+                      <span className="leading-snug line-clamp-2">
                         <span className="font-semibold">Admin: </span>
                         {item.changeNote}
                       </span>
@@ -562,13 +577,27 @@ function AllTab({
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => onManage(emp.id)}
-                      className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                      title="View and manage this employee's bonuses, deductions, and loans"
-                    >
-                      Manage
-                    </button>
+                    {item.status === "CHANGES_NEEDED" ? (
+                      <button
+                        onClick={() => onManage(emp.id)}
+                        className="rounded-md bg-orange-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-orange-700"
+                        title="Open the drawer to address admin's flagged changes"
+                      >
+                        Fix this
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onManage(emp.id)}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                        title={
+                          item.status === "DRAFT"
+                            ? "View and manage this employee's bonuses, deductions, and loans"
+                            : "View this employee's salary breakdown (read-only)"
+                        }
+                      >
+                        {item.status === "DRAFT" ? "Manage" : "View"}
+                      </button>
+                    )}
                     {(item.status === "DRAFT" || item.status === "CHANGES_NEEDED") && (
                       <ExcludeButton runId={run.id} employeeId={emp.id} />
                     )}
@@ -983,7 +1012,7 @@ function labelOf(s: EmployeePaymentStatus): string {
     SUBMITTED: "submitted",
     CHANGES_NEEDED: "changes needed",
     APPROVED: "approved",
-    IN_FINANCE_QUEUE: "in queue",
+    IN_FINANCE_QUEUE: "queued",
     PAID: "paid",
     EXCLUDED: "excluded",
   }[s];
