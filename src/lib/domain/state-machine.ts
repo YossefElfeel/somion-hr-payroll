@@ -42,15 +42,23 @@ export function isRunEditable(state: RunState): boolean {
   return state === "OPEN";
 }
 
-// A row is "editable" — meaning bonuses/deductions can be added or removed
-// for that employee on that run — only when the run is OPEN AND the employee
-// hasn't progressed past the editable point yet.
+// A row is "editable" — meaning bonuses/deductions can be added, edited, or
+// removed for that employee on that run — when:
+//  - the run is OPEN and the employee hasn't been submitted yet (DRAFT or
+//    CHANGES_NEEDED), OR
+//  - the run is FROZEN and admin specifically flagged this employee
+//    (CHANGES_NEEDED). HR doesn't have to re-open the whole run to fix one
+//    row; the lock targets the unsubmitted bulk, not the flagged minority.
 export function isRowEditable(
   runState: RunState,
   rowStatus: EmployeePaymentStatus,
 ): boolean {
-  if (runState !== "OPEN") return false;
-  return rowStatus === "DRAFT" || rowStatus === "CHANGES_NEEDED";
+  if (runState === "CLOSED") return false;
+  if (runState === "OPEN") {
+    return rowStatus === "DRAFT" || rowStatus === "CHANGES_NEEDED";
+  }
+  // FROZEN
+  return rowStatus === "CHANGES_NEEDED";
 }
 
 export function runStateLabel(state: RunState): string {

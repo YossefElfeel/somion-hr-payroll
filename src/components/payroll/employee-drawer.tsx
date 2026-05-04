@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
 import { computeTotals, formatCHF } from "@/lib/domain/totals";
 import { deleteBonus, deleteDeduction } from "@/lib/actions";
+import { isRowEditable } from "@/lib/domain/state-machine";
 import type {
   Bonus,
   Deduction,
@@ -53,9 +54,7 @@ export function EmployeeDrawer({
 
   if (!employee || !item) return null;
 
-  const editable =
-    run.state === "OPEN" &&
-    (item.status === "DRAFT" || item.status === "CHANGES_NEEDED");
+  const editable = isRowEditable(run.state, item.status);
 
   const totals = computeTotals(employee, bonuses, deductions);
   const manualDeductions = deductions.filter((d) => d.source === "MANUAL");
@@ -106,9 +105,16 @@ export function EmployeeDrawer({
         {/* Run state hint */}
         {!editable && run.state === "FROZEN" && (
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            This row is locked. {item.status === "CHANGES_NEEDED"
-              ? "Re-open the run to edit, or use Re-submit flagged if no edits are needed."
-              : "Edits aren't allowed once an employee has been submitted."}
+            This row is locked. Edits aren&apos;t allowed once an employee has
+            been submitted, approved, or paid.
+          </div>
+        )}
+        {editable && run.state === "FROZEN" && item.status === "CHANGES_NEEDED" && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            This row was flagged by admin — you can edit bonuses and deductions
+            below without re-opening the whole run. When done, click{" "}
+            <span className="font-semibold">Re-submit flagged</span> in the
+            action bar.
           </div>
         )}
 

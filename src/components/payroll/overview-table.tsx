@@ -113,11 +113,11 @@ export function OverviewTable({
     return acc;
   }, {});
 
-  // Only employees whose row is still editable (DRAFT/CHANGES_NEEDED) can
-  // receive a new bonus or deduction. Filtering here prevents the modal from
-  // letting HR pick someone the server will reject.
+  // Employees whose row is still editable (DRAFT/CHANGES_NEEDED on OPEN, or
+  // CHANGES_NEEDED on FROZEN). Filtering here prevents the modal from letting
+  // HR pick someone the server will reject.
   const editableEmployees = rows
-    .filter((r) => r.item.status === "DRAFT" || r.item.status === "CHANGES_NEEDED")
+    .filter((r) => isRowEditable(run.state, r.item.status))
     .map((r) => r.emp);
 
   const selectedRows = rows.filter((r) => selected.has(r.emp.id));
@@ -626,9 +626,7 @@ function BonusTab({
             const emp = employeeById.get(b.employeeId);
             if (!emp) return null;
             const item = itemByEmp.get(b.employeeId);
-            const editable =
-              run.state === "OPEN" &&
-              (item?.status === "DRAFT" || item?.status === "CHANGES_NEEDED");
+            const editable = item ? isRowEditable(run.state, item.status) : false;
             return (
               <tr key={b.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
@@ -780,10 +778,9 @@ function DeductionTab({
                     {(() => {
                       const item = itemByEmp.get(d.employeeId);
                       const editable =
-                        run.state === "OPEN" &&
                         d.source === "MANUAL" &&
-                        (item?.status === "DRAFT" ||
-                          item?.status === "CHANGES_NEEDED");
+                        item != null &&
+                        isRowEditable(run.state, item.status);
                       if (!editable) {
                         return (
                           <span
