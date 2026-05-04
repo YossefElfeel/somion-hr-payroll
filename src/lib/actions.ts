@@ -580,6 +580,43 @@ export async function markPaid(runId: string, employeeId: string) {
   await refresh();
 }
 
+// Bulk-mark a subset (or all) of IN_FINANCE_QUEUE items as PAID in one
+// server roundtrip. Skips items that aren't in the queue (so callers can
+// be sloppy about selection without crashing).
+export async function markBulkPaid(runId: string, employeeIds: string[]) {
+  await init();
+  const run = db.getRun(runId);
+  if (!run) throw new Error("Run not found");
+  if (employeeIds.length === 0) throw new Error("Pick at least one employee");
+  const now = new Date().toISOString();
+  let count = 0;
+  for (const empId of employeeIds) {
+    const item = db.getRunItem(runId, empId);
+    if (!item) continue;
+    if (!canTransitionEmployee(item.status, "PAID")) continue;
+    db.setRunItemStatus(item.id, "PAID", { paidAt: now });
+    for (const d of db.listAllRunDeductionsForEmployee(runId, empId)) {
+      if (
+        (d.source === "LOAN_INSTALLMENT" || d.source === "EXTRA_LOAN_REPAYMENT") &&
+        d.loanId
+      ) {
+        db.incrementLoanPaid(d.loanId, d.amount);
+      }
+    }
+    count++;
+  }
+  if (count > 0) {
+    db.appendAudit({
+      runId,
+      ...actor("FINANCE"),
+      action: `Marked ${count} employee(s) as PAID`,
+    });
+    maybeCloseRun(runId);
+  }
+  await refresh();
+  return count;
+}
+
 function maybeCloseRun(runId: string) {
   const items = db.listRunItems(runId);
   const allDone = items.every(
