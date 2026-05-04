@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { db } from "./domain/store";
 import { loadStore, saveStore } from "./domain/persistence";
-import { canTransitionRun, canTransitionEmployee } from "./domain/state-machine";
+import {
+  canTransitionRun,
+  canTransitionEmployee,
+  isRowEditable,
+} from "./domain/state-machine";
 import type { Role } from "./domain/types";
 
 // Hard-coded "current user" for demo — real impl plugs auth in here.
@@ -60,16 +64,14 @@ export async function addBonus(input: {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot add bonus: run is ${run.state}. Re-open the run first.`);
-  }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Bonus amount must be a positive number");
   }
   const item = db.getRunItem(input.runId, input.employeeId);
-  if (!item || (item.status !== "DRAFT" && item.status !== "CHANGES_NEEDED")) {
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
     throw new Error(
-      `Cannot add bonus to an employee whose status is ${item?.status ?? "missing"}`,
+      `Cannot add bonus: employee is ${item.status} on a ${run.state} run`,
     );
   }
   const b = db.addBonus({
@@ -97,16 +99,14 @@ export async function addDeduction(input: {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot add deduction: run is ${run.state}. Re-open the run first.`);
-  }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Deduction amount must be a positive number");
   }
   const item = db.getRunItem(input.runId, input.employeeId);
-  if (!item || (item.status !== "DRAFT" && item.status !== "CHANGES_NEEDED")) {
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
     throw new Error(
-      `Cannot add deduction to an employee whose status is ${item?.status ?? "missing"}`,
+      `Cannot add deduction: employee is ${item.status} on a ${run.state} run`,
     );
   }
   const d = db.addDeduction({
@@ -430,18 +430,16 @@ export async function updateBonus(input: {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot edit bonus: run is ${run.state}. Re-open the run first.`);
-  }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Bonus amount must be a positive number");
   }
   const bonus = db.getBonus(input.bonusId);
   if (!bonus) throw new Error("Bonus not found");
   const item = db.getRunItem(input.runId, bonus.employeeId);
-  if (!item || (item.status !== "DRAFT" && item.status !== "CHANGES_NEEDED")) {
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
     throw new Error(
-      `Cannot edit a bonus on a ${item?.status ?? "missing"} row`,
+      `Cannot edit a bonus on a ${item.status} row in a ${run.state} run`,
     );
   }
   db.updateBonus(input.bonusId, { amount: input.amount, reason: input.reason });
@@ -463,9 +461,6 @@ export async function updateDeduction(input: {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot edit deduction: run is ${run.state}. Re-open the run first.`);
-  }
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Deduction amount must be a positive number");
   }
@@ -477,9 +472,10 @@ export async function updateDeduction(input: {
     );
   }
   const item = db.getRunItem(input.runId, ded.employeeId);
-  if (!item || (item.status !== "DRAFT" && item.status !== "CHANGES_NEEDED")) {
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
     throw new Error(
-      `Cannot edit a deduction on a ${item?.status ?? "missing"} row`,
+      `Cannot edit a deduction on a ${item.status} row in a ${run.state} run`,
     );
   }
   db.updateDeduction(input.deductionId, {
@@ -499,8 +495,14 @@ export async function deleteBonus(runId: string, bonusId: string) {
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot delete bonus: run is ${run.state}`);
+  const bonus = db.getBonus(bonusId);
+  if (!bonus) throw new Error("Bonus not found");
+  const item = db.getRunItem(runId, bonus.employeeId);
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
+    throw new Error(
+      `Cannot delete bonus on a ${item.status} row in a ${run.state} run`,
+    );
   }
   db.removeBonus(bonusId);
   db.appendAudit({ runId, ...actor("HR"), action: "Removed a bonus" });
@@ -511,9 +513,6 @@ export async function deleteDeduction(runId: string, deductionId: string) {
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "OPEN") {
-    throw new Error(`Cannot delete deduction: run is ${run.state}`);
-  }
   // Loan-driven deductions are managed by the loan record. Deleting the line
   // here would orphan the loan's installment schedule.
   const ded = db
@@ -523,6 +522,13 @@ export async function deleteDeduction(runId: string, deductionId: string) {
   if (ded.source !== "MANUAL") {
     throw new Error(
       "Loan deductions cannot be deleted directly. Edit or remove the loan instead.",
+    );
+  }
+  const item = db.getRunItem(runId, ded.employeeId);
+  if (!item) throw new Error("Employee is not in this run");
+  if (!isRowEditable(run.state, item.status)) {
+    throw new Error(
+      `Cannot delete deduction on a ${item.status} row in a ${run.state} run`,
     );
   }
   db.removeDeduction(deductionId);
