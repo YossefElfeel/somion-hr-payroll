@@ -14,10 +14,25 @@ interface SearchParams {
 }
 
 function defaultPeriod(freq: PayrollFrequency) {
-  if (freq === "MONTHLY") return "2026-04";
-  if (freq === "BIWEEKLY") return "2026-04A";
-  if (freq === "WEEKLY") return "2026-W17";
-  return "2026-04";
+  // Default to the period containing "now" so the picker opens on a sensible
+  // current value. Specific seed periods are still reachable via the picker.
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  if (freq === "MONTHLY") return `${y}-${m}`;
+  if (freq === "BIWEEKLY") return `${y}-${m}${now.getDate() <= 14 ? "A" : "B"}`;
+  if (freq === "WEEKLY") {
+    // ISO week of `now` — same Thursday-based rule as date-fns getISOWeek.
+    const d = new Date(Date.UTC(y, now.getMonth(), now.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(
+      ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+    );
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  }
+  // HOURLY: today
+  return `${y}-${m}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 export default async function PayrollPage({
