@@ -29,9 +29,13 @@ interface Props {
     empDeductions: Deduction[];
   }[];
   audit: AuditEntry[];
+  // The most recent HR submit-for-approval note. Shown as a banner so
+  // admin sees the message HR attached to this batch instead of having
+  // to scan the audit log on the side.
+  latestHrNote?: { note: string; actorName: string; at: string } | null;
 }
 
-export function ApprovalReview({ run, rows, audit }: Props) {
+export function ApprovalReview({ run, rows, audit, latestHrNote }: Props) {
   const initial = rows.reduce<
     Record<string, { decision: Decision; note: string }>
   >((acc, r) => {
@@ -52,6 +56,22 @@ export function ApprovalReview({ run, rows, audit }: Props) {
 
   return (
     <>
+      {latestHrNote && (
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <span className="font-semibold">HR note ·</span>
+          <span className="leading-snug">
+            <span className="text-blue-700">
+              {latestHrNote.actorName} ·{" "}
+              {new Date(latestHrNote.at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>{" "}
+            — {latestHrNote.note}
+          </span>
+        </div>
+      )}
+
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900">
