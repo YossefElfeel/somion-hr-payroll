@@ -174,8 +174,19 @@ export async function submitForApproval(runId: string, employeeIds: string[], no
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "FROZEN") {
-    throw new Error(`Run must be FROZEN to submit; currently ${run.state}`);
+  if (run.state === "CLOSED") {
+    throw new Error("Cannot submit on a CLOSED run");
+  }
+  // Idempotent freeze: if HR re-opened to edit and forgot to re-freeze (or a
+  // stale tab fires the action while another tab has re-opened the run),
+  // freeze automatically rather than 500-ing.
+  if (run.state === "OPEN") {
+    db.setRunState(runId, "FROZEN");
+    db.appendAudit({
+      runId,
+      ...actor("HR"),
+      action: "Auto-frozen (submit on open run)",
+    });
   }
   if (employeeIds.length === 0) throw new Error("Pick at least one employee");
   const items = db.listRunItems(runId);
@@ -256,8 +267,17 @@ export async function resubmitFlagged(runId: string) {
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "FROZEN") {
-    throw new Error("Run must be FROZEN to re-submit flagged rows");
+  if (run.state === "CLOSED") {
+    throw new Error("Cannot re-submit on a CLOSED run");
+  }
+  // Idempotent freeze — same reasoning as submitForApproval.
+  if (run.state === "OPEN") {
+    db.setRunState(runId, "FROZEN");
+    db.appendAudit({
+      runId,
+      ...actor("HR"),
+      action: "Auto-frozen (re-submit on open run)",
+    });
   }
   const items = db.listRunItems(runId);
   const flagged = items.filter((it) => it.status === "CHANGES_NEEDED");
@@ -279,8 +299,16 @@ export async function paySelected(runId: string, employeeIds: string[]) {
   await init();
   const run = db.getRun(runId);
   if (!run) throw new Error("Run not found");
-  if (run.state !== "FROZEN") {
-    throw new Error(`Run must be FROZEN to pay; currently ${run.state}`);
+  if (run.state === "CLOSED") {
+    throw new Error("Cannot pay on a CLOSED run");
+  }
+  if (run.state === "OPEN") {
+    db.setRunState(runId, "FROZEN");
+    db.appendAudit({
+      runId,
+      ...actor("HR"),
+      action: "Auto-frozen (pay on open run)",
+    });
   }
   if (employeeIds.length === 0) throw new Error("Pick at least one employee");
   const items = db.listRunItems(runId);
