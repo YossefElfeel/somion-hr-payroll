@@ -5,6 +5,11 @@ import { OverviewTable } from "@/components/payroll/overview-table";
 import { StartRunButton } from "@/components/payroll/start-run-button";
 import { db } from "@/lib/domain/store";
 import { loadStore } from "@/lib/domain/persistence";
+import {
+  currentPeriodKey,
+  formatPeriodLabel,
+  periodUnitLabel,
+} from "@/lib/domain/period-format";
 import type { PayrollFrequency } from "@/lib/domain/types";
 import Link from "next/link";
 
@@ -13,26 +18,10 @@ interface SearchParams {
   period?: string;
 }
 
+// Default period when no ?period= is in the URL — delegates to the shared
+// helper so the picker, defaults, and labels never drift.
 function defaultPeriod(freq: PayrollFrequency) {
-  // Default to the period containing "now" so the picker opens on a sensible
-  // current value. Specific seed periods are still reachable via the picker.
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  if (freq === "MONTHLY") return `${y}-${m}`;
-  if (freq === "BIWEEKLY") return `${y}-${m}${now.getDate() <= 14 ? "A" : "B"}`;
-  if (freq === "WEEKLY") {
-    // ISO week of `now` — same Thursday-based rule as date-fns getISOWeek.
-    const d = new Date(Date.UTC(y, now.getMonth(), now.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil(
-      ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
-    );
-    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-  }
-  // HOURLY: today
-  return `${y}-${m}-${String(now.getDate()).padStart(2, "0")}`;
+  return currentPeriodKey(freq);
 }
 
 export default async function PayrollPage({
@@ -83,32 +72,38 @@ export default async function PayrollPage({
         {!run && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
             <h2 className="text-base font-semibold text-slate-900">
-              No payroll run for this period
+              No payroll run for this {periodUnitLabel(freq)}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              {freq === "MONTHLY"
-                ? `No run exists for ${formatPeriod(period)}.`
-                : `No run exists for ${period}.`}
-              {" "}{allEmployees.length} employees on this frequency.
+              No run exists for{" "}
+              <span className="font-medium text-slate-700">
+                {formatPeriodLabel(freq, period)}
+              </span>
+              .{" "}
+              {allEmployees.length === 0
+                ? `No employees are on the ${freq.toLowerCase()} frequency yet.`
+                : `${allEmployees.length} ${
+                    allEmployees.length === 1 ? "employee" : "employees"
+                  } on this frequency.`}
             </p>
             <p className="mt-3 text-xs text-slate-500">
-              In production, an OPEN run is auto-created on the 1st of each period.
-              You can also start one manually:
+              In production, an OPEN run is auto-created at the start of each{" "}
+              {periodUnitLabel(freq)}. You can also start one manually:
             </p>
             <div className="mt-4 flex items-center justify-center gap-2">
               <StartRunButton
                 frequency={freq}
                 periodKey={period}
-                periodLabel={
-                  freq === "MONTHLY" ? formatPeriod(period) : period
-                }
+                periodLabel={formatPeriodLabel(freq, period)}
               />
-              <Link
-                href="/payroll?freq=MONTHLY&period=2026-04"
-                className="text-sm font-medium text-brand-700 hover:underline"
-              >
-                or go to April 2026 →
-              </Link>
+              {freq !== "MONTHLY" && (
+                <Link
+                  href="/payroll?freq=MONTHLY"
+                  className="text-sm font-medium text-brand-700 hover:underline"
+                >
+                  or switch to monthly →
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -137,8 +132,3 @@ export default async function PayrollPage({
   );
 }
 
-function formatPeriod(periodKey: string) {
-  const [y, m] = periodKey.split("-");
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
-}
