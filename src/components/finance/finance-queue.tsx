@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { RunStateBadge } from "@/components/payroll/run-state-badge";
 import { StatusBadge } from "@/components/payroll/status-badge";
-import { markBulkPaid } from "@/lib/actions";
+import { markPaid, markBulkPaid } from "@/lib/actions";
 import { computeTotals, formatCHF } from "@/lib/domain/totals";
 import type {
   Bonus,
@@ -167,8 +167,22 @@ function RunGroup({ group }: { group: Group }) {
     });
   }
 
-  function payIds(ids: string[]) {
+  // Single-row Mark paid uses the dedicated markPaid action — no chance of
+  // bulk semantics being triggered for a one-row click. Keep the bulk path
+  // strictly for the explicit Pay all / Pay selected buttons (with confirm).
+  function payOne(empId: string) {
+    startTransition(async () => {
+      await markPaid(group.run.id, empId);
+    });
+  }
+  function payBulk(ids: string[], promptLabel: string) {
     if (ids.length === 0) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(
+        `${promptLabel} ${ids.length} employee${ids.length === 1 ? "" : "s"} as paid? This is irreversible.`,
+      );
+      if (!ok) return;
+    }
     startTransition(async () => {
       await markBulkPaid(group.run.id, ids);
       setSelected(new Set());
@@ -225,7 +239,12 @@ function RunGroup({ group }: { group: Group }) {
               size="sm"
               variant="primary"
               disabled={pending}
-              onClick={() => payIds(selectedQueueRows.map((x) => x.emp.id))}
+              onClick={() =>
+                payBulk(
+                  selectedQueueRows.map((x) => x.emp.id),
+                  "Mark",
+                )
+              }
               title={`Pay ${selectedQueueRows.length} selected (${formatCHF(selectedTotal)})`}
             >
               <CreditCard size={14} /> Pay selected ({selectedQueueRows.length})
@@ -236,7 +255,7 @@ function RunGroup({ group }: { group: Group }) {
               size="sm"
               variant="outline"
               disabled={pending}
-              onClick={() => payIds(queueIds)}
+              onClick={() => payBulk(queueIds, "Mark all")}
               title={`Pay all ${queueItems.length} pending (${formatCHF(totalToPay)})`}
             >
               <CheckCircle2 size={14} /> Pay all ({queueItems.length})
@@ -310,7 +329,8 @@ function RunGroup({ group }: { group: Group }) {
                           size="sm"
                           variant="outline"
                           disabled={pending}
-                          onClick={() => payIds([emp.id])}
+                          onClick={() => payOne(emp.id)}
+                          title={`Mark ${emp.name} as paid`}
                         >
                           <CheckCircle2 size={14} /> Mark paid
                         </Button>
