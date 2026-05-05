@@ -38,6 +38,15 @@ export default async function PayrollPage({
   const empIds = new Set(allEmployees.map((e) => e.id));
   const loans = db.listLoans().filter((l) => empIds.has(l.employeeId));
 
+  // Latest run-level note from admin (the optional textarea on the approval
+  // review screen). Surface as a banner so HR sees admin's general comments,
+  // not just the per-row flag notes which already render on each row.
+  const latestAdminNote = run
+    ? [...db.listAudit(run.id)]
+        .reverse()
+        .find((a) => a.actor === "ADMIN" && a.note?.trim())
+    : null;
+
   return (
     <AppShell title="Payroll">
       <div className="mx-auto w-full px-4 py-3">
@@ -97,6 +106,15 @@ export default async function PayrollPage({
             bonuses={db.listBonuses(run.id)}
             deductions={db.listDeductions(run.id)}
             loans={loans}
+            latestAdminNote={
+              latestAdminNote
+                ? {
+                    note: latestAdminNote.note!,
+                    actorName: latestAdminNote.actorName,
+                    at: latestAdminNote.at,
+                  }
+                : null
+            }
           />
         )}
       </div>

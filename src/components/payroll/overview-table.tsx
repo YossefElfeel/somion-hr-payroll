@@ -55,6 +55,10 @@ interface Props {
   bonuses: Bonus[];
   deductions: Deduction[];
   loans: Loan[];
+  // Latest run-level note left by admin on the approval review screen.
+  // Surfaced as a banner above the action bar so HR sees the comment
+  // without having to dig into an audit log.
+  latestAdminNote?: { note: string; actorName: string; at: string } | null;
 }
 
 type SubTab = "all" | "bonus" | "deduction" | "loans";
@@ -66,6 +70,7 @@ export function OverviewTable({
   bonuses,
   deductions,
   loans,
+  latestAdminNote,
 }: Props) {
   const [tab, setTab] = useState<SubTab>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -161,6 +166,22 @@ export function OverviewTable({
 
   return (
     <>
+      {latestAdminNote && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="font-semibold">Admin note ·</span>
+          <span className="leading-snug">
+            <span className="text-amber-700">
+              {latestAdminNote.actorName} ·{" "}
+              {new Date(latestAdminNote.at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>{" "}
+            — {latestAdminNote.note}
+          </span>
+        </div>
+      )}
+
       {/* State action bar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
         <div className="flex flex-wrap items-center gap-3">
