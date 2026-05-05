@@ -88,6 +88,20 @@ export function OverviewTable({
   const [deductionDefaultEmpId, setDeductionDefaultEmpId] = useState<string | undefined>();
   const [submitOpen, setSubmitOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Surface server rejections as an inline banner instead of letting the
+  // app's error boundary kick in and show a "Server-side exception" page.
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  function runAction(fn: () => Promise<unknown>) {
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await fn();
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : String(e));
+      }
+    });
+  }
 
   const employeeById = useMemo(() => {
     const m = new Map<string, Employee>();
@@ -166,6 +180,22 @@ export function OverviewTable({
 
   return (
     <>
+      {actionError && (
+        <div className="mb-3 flex items-start justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          <span>
+            <span className="font-semibold">Action failed: </span>
+            {actionError}
+          </span>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {latestAdminNote && (
         <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <span className="font-semibold">Admin note ·</span>
@@ -204,11 +234,7 @@ export function OverviewTable({
                 size="sm"
                 variant="primary"
                 disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    await freezeRun(run.id);
-                  })
-                }
+                onClick={() => runAction(() => freezeRun(run.id))}
               >
                 <Snowflake size={14} /> Freeze Run
               </Button>
@@ -221,11 +247,7 @@ export function OverviewTable({
                   size="sm"
                   variant="outline"
                   disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await resubmitFlagged(run.id);
-                    })
-                  }
+                  onClick={() => runAction(() => resubmitFlagged(run.id))}
                   title="Re-submit all flagged rows (status returns to Submitted for admin review)"
                 >
                   <Send size={14} /> Re-submit flagged ({counts.CHANGES_NEEDED})
@@ -236,11 +258,7 @@ export function OverviewTable({
                   size="sm"
                   variant="ghost"
                   disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await reopenRun(run.id);
-                    })
-                  }
+                  onClick={() => runAction(() => reopenRun(run.id))}
                   title="Re-open to add or modify bonuses/deductions for unsubmitted or flagged employees"
                 >
                   <RefreshCw size={14} /> Re-open
@@ -261,7 +279,7 @@ export function OverviewTable({
                 variant="primary"
                 disabled={payableSelected.length === 0 || pending}
                 onClick={() =>
-                  startTransition(async () => {
+                  runAction(async () => {
                     await paySelected(run.id, payableSelected.map((r) => r.emp.id));
                     setSelected(new Set());
                   })
