@@ -32,10 +32,30 @@ export default async function ApprovalDetailPage({
       return { item: it, emp, empBonuses, empDeductions };
     });
 
+  // Latest HR-side note (the optional textarea on Submit-for-approval) so
+  // admin sees it as a banner instead of having to scan the audit log.
+  const audit = db.listAudit(runId);
+  const latestHrNote = [...audit]
+    .reverse()
+    .find((a) => a.actor === "HR" && a.note?.trim() && a.action.startsWith("Submitted"));
+
   return (
     <AppShell title="Approve Run">
       <div className="mx-auto max-w-6xl p-6">
-        <ApprovalReview run={run} rows={rows} audit={db.listAudit(runId)} />
+        <ApprovalReview
+          run={run}
+          rows={rows}
+          audit={audit}
+          latestHrNote={
+            latestHrNote
+              ? {
+                  note: latestHrNote.note!,
+                  actorName: latestHrNote.actorName,
+                  at: latestHrNote.at,
+                }
+              : null
+          }
+        />
       </div>
     </AppShell>
   );
