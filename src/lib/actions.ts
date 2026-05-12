@@ -8,7 +8,22 @@ import {
   canTransitionEmployee,
   isRowEditable,
 } from "./domain/state-machine";
-import type { Role } from "./domain/types";
+import {
+  EVALUATION_CATEGORIES,
+  type Employee,
+  type EvaluationCategory,
+  type EvaluationScore,
+  type ExperienceCertificatePayload,
+  type HRLetterPayload,
+  type IssuedDocumentType,
+  type PayrollFrequency,
+  type Role,
+} from "./domain/types";
+import {
+  sendDocumentEmail,
+  sendEvaluationEmail,
+  sendPayslipEmail,
+} from "./email/send";
 
 // Hard-coded "current user" for demo — real impl plugs auth in here.
 function actor(role: Role) {
@@ -592,6 +607,10 @@ export async function markPaid(runId: string, employeeId: string) {
     throw new Error(`Cannot pay from ${item.status}`);
   }
   db.setRunItemStatus(item.id, "PAID", { paidAt: new Date().toISOString() });
+  // Mark the payslip email as pending; the actual send is kicked off after
+  // refresh() so the row first appears in the employee's history with PENDING,
+  // then flips to SENT/FAILED when the send completes and re-revalidates.
+  db.setRunItemPayslipEmailStatus(item.id, "PENDING");
   // When a payment confirms, every loan-line on this employee's run becomes
   // real — increment the loan's paid amount so the schedule UI advances.
   for (const d of db.listAllRunDeductionsForEmployee(runId, employeeId)) {
@@ -606,6 +625,11 @@ export async function markPaid(runId: string, employeeId: string) {
   });
   maybeCloseRun(runId);
   await refresh();
+  // Fire-and-forget — failures are logged inside sendPayslipEmail and the
+  // row's emailStatus reflects the outcome. We don't block the action on it.
+  void sendPayslipEmail(runId, employeeId).catch((err) =>
+    console.error("[actions] sendPayslipEmail failed:", err),
+  );
 }
 
 // Bulk-mark a subset (or all) of IN_FINANCE_QUEUE items as PAID in one
@@ -618,11 +642,13 @@ export async function markBulkPaid(runId: string, employeeIds: string[]) {
   if (employeeIds.length === 0) throw new Error("Pick at least one employee");
   const now = new Date().toISOString();
   let count = 0;
+  const paidEmployeeIds: string[] = [];
   for (const empId of employeeIds) {
     const item = db.getRunItem(runId, empId);
     if (!item) continue;
     if (!canTransitionEmployee(item.status, "PAID")) continue;
     db.setRunItemStatus(item.id, "PAID", { paidAt: now });
+    db.setRunItemPayslipEmailStatus(item.id, "PENDING");
     for (const d of db.listAllRunDeductionsForEmployee(runId, empId)) {
       if (
         (d.source === "LOAN_INSTALLMENT" || d.source === "EXTRA_LOAN_REPAYMENT") &&
@@ -631,6 +657,7 @@ export async function markBulkPaid(runId: string, employeeIds: string[]) {
         db.incrementLoanPaid(d.loanId, d.amount);
       }
     }
+    paidEmployeeIds.push(empId);
     count++;
   }
   if (count > 0) {
@@ -642,6 +669,13 @@ export async function markBulkPaid(runId: string, employeeIds: string[]) {
     maybeCloseRun(runId);
   }
   await refresh();
+  // Fire-and-forget: dispatch a payslip email per paid employee. Each call
+  // updates its own row's status and revalidates the relevant paths.
+  for (const empId of paidEmployeeIds) {
+    void sendPayslipEmail(runId, empId).catch((err) =>
+      console.error("[actions] sendPayslipEmail failed:", err),
+    );
+  }
   return count;
 }
 
@@ -658,4 +692,277 @@ function maybeCloseRun(runId: string) {
       action: "All payments confirmed — run closed",
     });
   }
+}
+
+// ---- Employee details: evaluations ----
+
+export async function submitEvaluation(input: {
+  employeeId: string;
+  periodLabel: string;
+  scores: Record<EvaluationCategory, EvaluationScore>;
+  strengths: string;
+  areasToImprove: string;
+  goalsNextPeriod?: string;
+  comments?: string;
+}) {
+  await init();
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  // Defensive: ensure every category has a score (the modal validates this
+  // but a misbehaving client shouldn't be able to skip it).
+  for (const cat of EVALUATION_CATEGORIES) {
+    if (!input.scores[cat]) throw new Error(`Missing score for ${cat}`);
+  }
+  const overall =
+    Object.values(input.scores).reduce((a, b) => a + b, 0) /
+    EVALUATION_CATEGORIES.length;
+  const ev = db.addEvaluation({
+    employeeId: input.employeeId,
+    periodLabel: input.periodLabel,
+    evaluatedAt: new Date().toISOString(),
+    evaluatedBy: actor("HR").actorName,
+    scores: input.scores,
+    overall,
+    strengths: input.strengths,
+    areasToImprove: input.areasToImprove,
+    goalsNextPeriod: input.goalsNextPeriod,
+    comments: input.comments,
+    emailedTo: emp.email,
+    emailStatus: "PENDING",
+  });
+  await refresh();
+  void sendEvaluationEmail(ev.id).catch((err) =>
+    console.error("[actions] sendEvaluationEmail failed:", err),
+  );
+  return ev;
+}
+
+export async function resendEvaluationEmail(evaluationId: string) {
+  await init();
+  const ev = db.getEvaluation(evaluationId);
+  if (!ev) throw new Error("Evaluation not found");
+  db.setEvaluationEmailStatus(ev.id, "PENDING");
+  await refresh();
+  void sendEvaluationEmail(ev.id).catch((err) =>
+    console.error("[actions] resendEvaluationEmail failed:", err),
+  );
+}
+
+// ---- Employee details: issued documents (experience cert / HR letter) ----
+
+export async function issueDocument(input: {
+  employeeId: string;
+  type: IssuedDocumentType;
+  subject: string;
+  payload: ExperienceCertificatePayload | HRLetterPayload;
+}) {
+  await init();
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  const doc = db.addIssuedDocument({
+    employeeId: input.employeeId,
+    type: input.type,
+    issuedAt: new Date().toISOString(),
+    issuedBy: actor("HR").actorName,
+    subject: input.subject,
+    payload: input.payload,
+    emailedTo: emp.email,
+    emailStatus: "PENDING",
+  });
+  await refresh();
+  void sendDocumentEmail(doc.id).catch((err) =>
+    console.error("[actions] sendDocumentEmail failed:", err),
+  );
+  return doc;
+}
+
+export async function resendDocumentEmail(documentId: string) {
+  await init();
+  const doc = db.getIssuedDocument(documentId);
+  if (!doc) throw new Error("Document not found");
+  db.setIssuedDocumentEmailStatus(doc.id, "PENDING");
+  await refresh();
+  void sendDocumentEmail(doc.id).catch((err) =>
+    console.error("[actions] resendDocumentEmail failed:", err),
+  );
+}
+
+export async function resendPayslipEmail(runId: string, employeeId: string) {
+  await init();
+  const item = db.getRunItem(runId, employeeId);
+  if (!item) throw new Error("Run item not found");
+  if (item.status !== "PAID") throw new Error("Payslip can only be resent for paid rows");
+  db.setRunItemPayslipEmailStatus(item.id, "PENDING");
+  await refresh();
+  void sendPayslipEmail(runId, employeeId).catch((err) =>
+    console.error("[actions] resendPayslipEmail failed:", err),
+  );
+}
+
+// ---- Employee details: notes (real CRUD — small enough to fully implement) ----
+
+export async function addNote(input: {
+  employeeId: string;
+  title: string;
+  body: string;
+}) {
+  await init();
+  if (!input.title.trim()) throw new Error("Title required");
+  const n = db.addNote({
+    employeeId: input.employeeId,
+    title: input.title,
+    body: input.body,
+  });
+  await refresh();
+  revalidatePath(`/employees/${input.employeeId}`);
+  return n;
+}
+
+export async function updateNote(noteId: string, patch: { title?: string; body?: string }) {
+  await init();
+  const n = db.updateNote(noteId, patch);
+  await refresh();
+  if (n) revalidatePath(`/employees/${n.employeeId}`);
+}
+
+export async function removeNote(noteId: string, employeeId: string) {
+  await init();
+  db.removeNote(noteId);
+  await refresh();
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+// ---- Employee details: attachments (metadata only — no real file upload) ----
+
+export async function addAttachment(input: {
+  employeeId: string;
+  name: string;
+  kind: "CONTRACT" | "MILITARY" | "IDENTITY" | "EDUCATION" | "OTHER";
+  sizeBytes: number;
+}) {
+  await init();
+  if (!input.name.trim()) throw new Error("Filename required");
+  const a = db.addAttachment(input);
+  await refresh();
+  revalidatePath(`/employees/${input.employeeId}`);
+  return a;
+}
+
+export async function removeAttachment(attachmentId: string, employeeId: string) {
+  await init();
+  db.removeAttachment(attachmentId);
+  await refresh();
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+// ---- Employee profile edits (Personal / Employee / Bank info, Skills) ----
+
+// One generic patcher for all editable top-level fields. The modals send only
+// the fields they own — Personal Info sends dob/gender/etc., Employee Info
+// sends jobTitle/managerId/etc., Skills sends just `skills`. We trust the
+// callers and don't enumerate allowed keys here.
+type EmployeePatch = Partial<Omit<Employee, "id" | "bank">>;
+
+export async function updateEmployeeProfile(
+  employeeId: string,
+  patch: EmployeePatch,
+) {
+  await init();
+  const e = db.getEmployee(employeeId);
+  if (!e) throw new Error("Employee not found");
+  db.updateEmployee(employeeId, patch);
+  await refresh();
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+export async function updateEmployeeBank(
+  employeeId: string,
+  bankPatch: Partial<Employee["bank"]>,
+) {
+  await init();
+  const e = db.getEmployee(employeeId);
+  if (!e) throw new Error("Employee not found");
+  db.updateEmployeeBank(employeeId, bankPatch);
+  await refresh();
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+// Record a salary raise: writes a SalaryUpgrade history row AND bumps the
+// employee's basicSalary so future runs use it.
+export async function addSalaryUpgrade(input: {
+  employeeId: string;
+  newSalary: number;
+}) {
+  await init();
+  const e = db.getEmployee(input.employeeId);
+  if (!e) throw new Error("Employee not found");
+  if (!Number.isFinite(input.newSalary) || input.newSalary < 0) {
+    throw new Error("Salary must be a non-negative number");
+  }
+  const su = db.addSalaryUpgrade(input.employeeId, input.newSalary);
+  if (!su) throw new Error("Failed to add salary upgrade");
+  await refresh();
+  revalidatePath(`/employees/${input.employeeId}`);
+  return su;
+}
+
+// ---- New employee creation (from /employees list) ----
+
+export async function addEmployee(input: {
+  name: string;
+  email: string;
+  department: string;
+  jobTitle?: string;
+  basicSalary: number;
+  payrollFrequency: PayrollFrequency;
+}) {
+  await init();
+  if (!input.name.trim()) throw new Error("Name required");
+  if (!input.email.trim()) throw new Error("Email required");
+  if (!Number.isFinite(input.basicSalary) || input.basicSalary < 0) {
+    throw new Error("Salary must be a non-negative number");
+  }
+  const emp = db.addEmployee({
+    name: input.name.trim(),
+    email: input.email.trim(),
+    department: input.department.trim() || "—",
+    jobTitle: input.jobTitle?.trim() || undefined,
+    basicSalary: input.basicSalary,
+    payrollFrequency: input.payrollFrequency,
+    employeeType: "Fulltime",
+    workLocation: "Remote",
+    status: "Active",
+    joinDate: new Date().toISOString().slice(0, 10),
+    skills: [],
+    bank: {
+      bankName: "—",
+      accountName: input.name.trim(),
+      accountNo: "—",
+      iban: "—",
+    },
+  });
+  await refresh();
+  revalidatePath("/employees");
+  return emp;
+}
+
+// ---- Employee dashboard: set the currently impersonated employee via cookie ----
+
+// The role switcher writes this cookie so the server-rendered /me page knows
+// which employee to show. No real auth — same demo posture as the role switch.
+export async function setCurrentEmployee(employeeId: string) {
+  await init();
+  const { cookies } = await import("next/headers");
+  const store = await cookies();
+  if (employeeId) {
+    store.set("somion.employeeId", employeeId, {
+      path: "/",
+      sameSite: "lax",
+      // 30 days — generous enough for demo, short enough to expire stale state.
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  } else {
+    store.delete("somion.employeeId");
+  }
+  revalidatePath("/me");
 }
