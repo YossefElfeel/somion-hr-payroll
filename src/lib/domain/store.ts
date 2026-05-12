@@ -664,8 +664,191 @@ function build(): Store {
     },
   ];
 
-  // Empty by default — first issued document will come from HR via the new flow.
-  const issuedDocuments: IssuedDocument[] = [];
+  // Mock issued documents so the HR Letters & Certificates section is
+  // populated for several employees out of the box. Mix of both document
+  // types, varied subjects, dates, and authors. References specific
+  // employees by index so the docs land on profiles the user is likely to
+  // open during a demo (Tahsen + a few others).
+  const issuedDocuments: IssuedDocument[] = [
+    // Tahsen Khan — experience certificate (recent)
+    {
+      id: id("doc"),
+      employeeId: employees[0].id,
+      type: "EXPERIENCE_CERTIFICATE",
+      issuedAt: "2026-04-12T10:30:00Z",
+      issuedBy: "Yossef",
+      subject: "Experience Certificate — Tahsen Khan",
+      payload: {
+        position: "Product Designer",
+        startDate: "2024-01-02",
+        remarks:
+          "Tahsen has been a key contributor to our design team, leading the design system refresh and mentoring junior designers.",
+      },
+      emailedTo: employees[0].email,
+      emailStatus: "SENT",
+    },
+    // Tahsen Khan — HR letter for visa
+    {
+      id: id("doc"),
+      employeeId: employees[0].id,
+      type: "HR_LETTER",
+      issuedAt: "2026-03-20T14:00:00Z",
+      issuedBy: "Yossef",
+      subject: "HR Letter — Schengen Visa Application",
+      payload: {
+        addressedTo: "Embassy of Switzerland, Cairo",
+        purpose: "Schengen visa application for business travel",
+        body:
+          "This letter confirms that Tahsen Khan is currently employed at Somion as a Product Designer (full-time, monthly salary 3,000 EGP). The employee is travelling to Switzerland on company business from 15 to 22 May 2026 and will return to their post in Cairo upon completion of the trip. The employee's position is fully funded and will be retained on return.",
+      },
+      emailedTo: employees[0].email,
+      emailStatus: "SENT",
+    },
+
+    // Harry Kane — HR letter for bank loan
+    {
+      id: id("doc"),
+      employeeId: employees[1].id,
+      type: "HR_LETTER",
+      issuedAt: "2026-02-14T09:15:00Z",
+      issuedBy: "Yossef",
+      subject: "HR Letter — Mortgage Application",
+      payload: {
+        addressedTo: "Barclays Bank, Mortgage Department",
+        purpose: "Mortgage application — employment & salary confirmation",
+        body:
+          "This letter confirms that Harry Kane has been employed at Somion as a Senior Sales Executive since 15 March 2022. The current annual salary is 36,000 CHF, paid monthly, and the employment is on a permanent, full-time basis.",
+      },
+      emailedTo: employees[1].email,
+      emailStatus: "SENT",
+    },
+
+    // Jaman Khan — experience certificate
+    {
+      id: id("doc"),
+      employeeId: employees[2].id,
+      type: "EXPERIENCE_CERTIFICATE",
+      issuedAt: "2026-01-30T11:00:00Z",
+      issuedBy: "Yossef",
+      subject: "Experience Certificate — Jaman Khan",
+      payload: {
+        position: "Engineering Manager",
+        startDate: "2019-08-01",
+        remarks:
+          "Jaman has built and led our engineering function from a team of two to fifteen, shipping the booking, payments, and notification platforms.",
+      },
+      emailedTo: employees[2].email,
+      emailStatus: "SENT",
+    },
+
+    // Joe Root — HR letter for rental
+    {
+      id: id("doc"),
+      employeeId: employees[3].id,
+      type: "HR_LETTER",
+      issuedAt: "2026-03-02T16:45:00Z",
+      issuedBy: "Yossef",
+      subject: "HR Letter — Rental Application",
+      payload: {
+        addressedTo: "Foxtons, Lettings — Sheffield",
+        purpose: "Rental application — proof of employment and income",
+        body:
+          "This letter confirms that Joe Root is currently employed at Somion as a Senior Software Engineer on a permanent, full-time basis with an annual salary of 42,000 CHF, paid monthly. Employment is not subject to a fixed end date.",
+      },
+      emailedTo: employees[3].email,
+      emailStatus: "SENT",
+    },
+
+    // David Warner — experience certificate (older)
+    {
+      id: id("doc"),
+      employeeId: employees[6].id,
+      type: "EXPERIENCE_CERTIFICATE",
+      issuedAt: "2025-11-18T13:30:00Z",
+      issuedBy: "Yossef",
+      subject: "Experience Certificate — David Warner",
+      payload: {
+        position: "Head of Sales",
+        startDate: "2018-11-05",
+        remarks:
+          "David has consistently exceeded annual revenue targets and built our enterprise sales motion from the ground up.",
+      },
+      emailedTo: employees[6].email,
+      emailStatus: "SENT",
+    },
+
+    // Tim David — HR letter for visa
+    {
+      id: id("doc"),
+      employeeId: employees[8].id,
+      type: "HR_LETTER",
+      issuedAt: "2026-04-05T08:00:00Z",
+      issuedBy: "Yossef",
+      subject: "HR Letter — UK Business Visa",
+      payload: {
+        addressedTo: "UK Visas and Immigration",
+        purpose: "Short-term business visit for conference attendance",
+        body:
+          "This letter confirms that Tim David is employed at Somion as a Frontend Engineer (full-time, permanent). The employee will attend the React London conference from 4 to 6 June 2026 on company sponsorship and will return to their post in Singapore immediately afterwards.",
+      },
+      emailedTo: employees[8].email,
+      emailStatus: "SENT",
+    },
+
+    // Pat Gibbs — HR letter relating to leave (matches her On leave status)
+    {
+      id: id("doc"),
+      employeeId: employees[10].id,
+      type: "HR_LETTER",
+      issuedAt: "2026-04-25T10:00:00Z",
+      issuedBy: "Yossef",
+      subject: "HR Letter — Medical Leave Confirmation",
+      payload: {
+        addressedTo: "Discovery Health, Cape Town",
+        purpose: "Medical leave confirmation for insurance claim",
+        body:
+          "This letter confirms that Pat Gibbs is currently on approved medical leave from Somion, in line with company leave policy. Their position as Office Manager is fully retained, and they are expected to return to their post on 13 November 2025.",
+      },
+      emailedTo: employees[10].email,
+      emailStatus: "SENT",
+    },
+
+    // Sara Lin — experience certificate (contractor)
+    {
+      id: id("doc"),
+      employeeId: employees[11].id,
+      type: "EXPERIENCE_CERTIFICATE",
+      issuedAt: "2026-04-28T15:00:00Z",
+      issuedBy: "Yossef",
+      subject: "Experience Certificate — Sara Lin (Contract)",
+      payload: {
+        position: "Data Analyst (Contract)",
+        startDate: "2025-09-15",
+        remarks:
+          "Engaged on a fixed-scope contract delivering revenue and operations dashboards. References available on request.",
+      },
+      emailedTo: employees[11].email,
+      emailStatus: "SENT",
+    },
+
+    // One PENDING email so the demo shows the in-flight state
+    {
+      id: id("doc"),
+      employeeId: employees[5].id,
+      type: "HR_LETTER",
+      issuedAt: new Date(Date.now() - 5_000).toISOString(),
+      issuedBy: "Yossef",
+      subject: "HR Letter — Apartment Lease Renewal",
+      payload: {
+        addressedTo: "Property Manager — Valencia Apartments",
+        purpose: "Lease renewal — proof of ongoing employment",
+        body:
+          "This letter confirms that James Henry is currently employed at Somion as an Operations Analyst on a permanent, full-time basis.",
+      },
+      emailedTo: employees[5].email,
+      emailStatus: "PENDING",
+    },
+  ];
 
   // ── Mock data for the other 11 employees so every profile renders full ──
   // Pat Gibbs is "On leave", so they get a `Pending` annual-leave row to
