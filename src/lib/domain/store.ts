@@ -2,6 +2,7 @@
 // Held on globalThis so HMR and per-route bundles share ONE instance.
 // Replace with Postgres (Neon) when implementing for real, per the plan.
 
+import { EVALUATION_CATEGORIES } from "./types";
 import type {
   AuditEntry,
   Bonus,
@@ -14,6 +15,17 @@ import type {
   RunItem,
   RunState,
   EmployeePaymentStatus,
+  EmailDeliveryStatus,
+  SalaryUpgrade,
+  Attachment,
+  AttendanceEntry,
+  LeaveRequest,
+  LeaveBalance,
+  Project,
+  Note,
+  EmployeeActivity,
+  Evaluation,
+  IssuedDocument,
 } from "./types";
 
 export interface Store {
@@ -25,6 +37,17 @@ export interface Store {
   deductions: Deduction[];
   audit: AuditEntry[];
   freezeSettings: FreezeSettings;
+  // Employee-details-page entities
+  salaryUpgrades: SalaryUpgrade[];
+  attachments: Attachment[];
+  attendance: AttendanceEntry[];
+  leaveRequests: LeaveRequest[];
+  leaveBalances: LeaveBalance[];
+  projects: Project[];
+  notes: Note[];
+  employeeActivity: EmployeeActivity[];
+  evaluations: Evaluation[];
+  issuedDocuments: IssuedDocument[];
   nextId: number;
 }
 
@@ -55,6 +78,8 @@ function build(): Store {
     frequency: PayrollFrequency,
   ): Employee {
     const slug = name.toLowerCase().replace(/\s+/g, ".");
+    // Lightweight defaults so all employees have something to render in the
+    // details page; richer per-employee overrides happen below for Tahsen.
     return {
       id: id("emp"),
       name,
@@ -68,8 +93,36 @@ function build(): Store {
         accountNo: "CH9300762011623852957",
         iban: "CH93 0076 2011 6238 5295 7",
       },
+      jobTitle: department === "Engineering" ? "Software Engineer" : `${department} Specialist`,
+      employeeType: frequency === "HOURLY" ? "Contractor" : "Fulltime",
+      joinDate: "2024-01-02",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["Teamwork", "Communication"],
     };
   }
+
+  // Enrich the first employee with the rich mockup profile so the demo page
+  // renders the same data as the design.
+  Object.assign(employees[0], {
+    avatar: undefined,
+    phone: "01893531209",
+    dob: "2001-05-23",
+    gender: "Male",
+    nationality: "Egypt",
+    nationalId: "200242686565",
+    accommodationType: "Company housing",
+    taxId: "—",
+    postCode: "31001",
+    address: "Sylhet city",
+    jobTitle: "Product Designer",
+    employeeType: "Fulltime",
+    managerId: employees[0].id, // self for demo (mockup shows Tahsen Khan)
+    joinDate: "2024-01-02",
+    workLocation: "Remote",
+    status: "Active",
+    skills: ["UI Design", "Product Design", "Website Design", "Webapp Design", "Dashboard Design"],
+  });
 
   const loans: Loan[] = [
     {
@@ -120,6 +173,10 @@ function build(): Store {
       employeeId: emp.id,
       status: "PAID",
       paidAt: "2026-03-31T15:00:00Z",
+      // Mark the seeded PAID row as already-emailed so the Payroll History
+      // section on the employee details page shows a stable "Sent" badge
+      // out of the box. Real new PAID rows go through the proper flow.
+      payslipEmailStatus: "SENT",
     });
   }
 
@@ -195,6 +252,106 @@ function build(): Store {
     weekly: { weekday: 5, hour: 18 },
   };
 
+  // ── Employee details page seed data ──
+  // Most rows are for the first employee (Tahsen) so the page looks alive.
+
+  const tahsen = employees[0];
+
+  const salaryUpgrades: SalaryUpgrade[] = [
+    { id: id("su"), employeeId: tahsen.id, date: "2024-12-16", oldSalary: 2700, newSalary: 3000, percentage: 10 },
+    { id: id("su"), employeeId: tahsen.id, date: "2024-12-25", oldSalary: 2300, newSalary: 2500, percentage: 10 },
+    { id: id("su"), employeeId: tahsen.id, date: "2025-02-14", oldSalary: 2000, newSalary: 2200, percentage: 10 },
+    { id: id("su"), employeeId: tahsen.id, date: "2025-02-21", oldSalary: 1800, newSalary: 2000, percentage: 10 },
+  ];
+
+  const attachments: Attachment[] = [
+    { id: id("att"), employeeId: tahsen.id, name: "Contract.pdf", kind: "CONTRACT", sizeBytes: 12_000_000, uploadedAt: "2024-01-02T10:00:00Z" },
+    { id: id("att"), employeeId: tahsen.id, name: "miliarty service.pdf", kind: "MILITARY", sizeBytes: 12_000_000, uploadedAt: "2024-01-02T10:00:00Z" },
+    { id: id("att"), employeeId: tahsen.id, name: "identity id.pdf", kind: "IDENTITY", sizeBytes: 12_000_000, uploadedAt: "2024-01-02T10:00:00Z" },
+    { id: id("att"), employeeId: tahsen.id, name: "Educaion.pdf", kind: "EDUCATION", sizeBytes: 12_000_000, uploadedAt: "2024-01-02T10:00:00Z" },
+  ];
+
+  const attendance: AttendanceEntry[] = [
+    { id: id("att"), employeeId: tahsen.id, date: "2024-12-16", startWork: "07:32 AM", endWork: "05:21 PM", status: "APPROVED", logHours: "10:03:12", overtimeMin: 120, lateMin: 0 },
+    { id: id("att"), employeeId: tahsen.id, date: "2024-12-25", startWork: "07:35 AM", endWork: "05:22 PM", status: "APPROVED", logHours: "10:03:13", overtimeMin: 60, lateMin: 0 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-02-14", startWork: "07:38 AM", endWork: "05:23 PM", status: "LATE", logHours: "10:03:14", overtimeMin: 30, lateMin: 5 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-02-21", startWork: "07:40 AM", endWork: "05:24 PM", status: "APPROVED", logHours: "10:03:15", overtimeMin: 120, lateMin: 0 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-03-26", startWork: "07:45 AM", endWork: "05:25 PM", status: "LATE", logHours: "10:03:16", overtimeMin: 60, lateMin: 8 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-03-27", startWork: "07:50 AM", endWork: "05:26 PM", status: "APPROVED", logHours: "10:03:17", overtimeMin: 30, lateMin: 0 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-04-14", startWork: "07:55 AM", endWork: "05:27 PM", status: "LATE", logHours: "10:03:18", overtimeMin: 0, lateMin: 12 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-04-30", startWork: "08:00 AM", endWork: "05:28 PM", status: "APPROVED", logHours: "10:03:19", overtimeMin: 0, lateMin: 0 },
+    { id: id("att"), employeeId: tahsen.id, date: "2025-05-01", startWork: "08:05 AM", endWork: "05:29 PM", status: "APPROVED", logHours: "10:03:20", overtimeMin: 0, lateMin: 0 },
+  ];
+
+  const leaveRequests: LeaveRequest[] = [
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2024-12-16", dateTo: "2024-12-16", durationDays: 1, status: "Approved", note: "Automatic public holiday: Victory Day" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2024-12-25", dateTo: "2024-12-25", durationDays: 1, status: "Approved", note: "Automatic public holiday: Christmas Day" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-02-14", dateTo: "2025-02-14", durationDays: 1, status: "Approved", note: "Automatic public holiday: Shab e Barat" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-02-21", dateTo: "2025-02-21", durationDays: 1, status: "Approved", note: "Automatic public holiday: Language Martyrs Day" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-03-26", dateTo: "2025-03-26", durationDays: 1, status: "Approved", note: "Automatic public holiday: Independence Day" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-03-27", dateTo: "2025-03-27", durationDays: 1, status: "Approved", note: "Automatic public holiday: Laylat al Qadr" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-04-14", dateTo: "2025-04-14", durationDays: 1, status: "Approved", note: "Automatic public holiday: Bengali New Year's Day" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-04-30", dateTo: "2025-04-30", durationDays: 1, status: "Approved", note: "Automatic public holiday: Eid ul Fitr" },
+    { id: id("lr"), employeeId: tahsen.id, type: "Public Holiday", dateFrom: "2025-05-01", dateTo: "2025-05-01", durationDays: 1, status: "Approved", note: "Automatic public holiday: Labor Day / Eid ul Fitr" },
+  ];
+
+  const leaveBalances: LeaveBalance[] = [
+    { employeeId: tahsen.id, available: 19, pending: 3, booked: 3, used: 0, contractDays: 24 },
+  ];
+
+  const projects: Project[] = [
+    { id: id("prj"), employeeId: tahsen.id, title: "Travel planner website design", description: "Design a user friendly profile section...", percentComplete: 90, status: "Approved", dueDate: "2024-11-07", members: 3, comments: 12 },
+    { id: id("prj"), employeeId: tahsen.id, title: "Travel planner website design", description: "Design a user friendly profile section...", percentComplete: 90, status: "Testing", dueDate: "2024-11-07", members: 3, comments: 12 },
+    { id: id("prj"), employeeId: tahsen.id, title: "Travel planner website design", description: "Design a user friendly profile section...", percentComplete: 90, status: "InProgress", dueDate: "2024-11-07", members: 3, comments: 12 },
+    { id: id("prj"), employeeId: tahsen.id, title: "Travel planner website design", description: "Design a user friendly profile section...", percentComplete: 90, status: "Testing", dueDate: "2024-11-07", members: 3, comments: 12 },
+  ];
+
+  const notes: Note[] = [
+    {
+      id: id("note"),
+      employeeId: tahsen.id,
+      title: "Note 1",
+      body: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Risus commodo viverra maecenas accumsan lacus. Sed lectus vestibulum mais ullamcorper velit sed ullamcorper. Purus ut faucibus pulvinar elementum. Eget aliquet nibh praesent tristique magna sit. Scelerisque purus semper eget duis at tellus at.",
+      createdAt: "2026-05-30T10:00:00Z",
+    },
+  ];
+
+  const employeeActivity: EmployeeActivity[] = [
+    { id: id("act"), employeeId: tahsen.id, at: "2025-01-01T14:12:00Z", message: "Tahsen Khan requested a day off for January 15-17" },
+    { id: id("act"), employeeId: tahsen.id, at: "2025-01-01T14:11:00Z", message: "Tahsen Khan updated the Marketing Department details." },
+    { id: id("act"), employeeId: tahsen.id, at: "2025-01-01T14:10:00Z", message: "Tahsen Khan was mentioned in a team meeting schedule." },
+    { id: id("act"), employeeId: tahsen.id, at: "2025-01-01T14:09:00Z", message: "Tahsen Khan completed the onboarding checklist." },
+    { id: id("act"), employeeId: tahsen.id, at: "2025-01-01T14:08:00Z", message: "Tahsen Khan added a new schedule: Product Launch Briefing." },
+  ];
+
+  // One sample evaluation so the page isn't empty in demo.
+  const evaluations: Evaluation[] = [
+    {
+      id: id("ev"),
+      employeeId: tahsen.id,
+      periodLabel: "Q1 2026",
+      evaluatedAt: "2026-04-01T09:00:00Z",
+      evaluatedBy: "Yossef",
+      scores: {
+        Performance: 5,
+        Communication: 4,
+        Teamwork: 5,
+        Initiative: 4,
+        Punctuality: 3,
+      },
+      overall: (5 + 4 + 5 + 4 + 3) / EVALUATION_CATEGORIES.length,
+      strengths: "Strong eye for visual hierarchy. Mentored two junior designers and consistently delivered ahead of schedule.",
+      areasToImprove: "Improve punctuality on stand-ups; share work-in-progress earlier.",
+      goalsNextPeriod: "Lead the design system refresh; pair weekly with engineering to unblock handoffs.",
+      comments: "Great quarter overall.",
+      emailedTo: tahsen.email,
+      emailStatus: "SENT",
+    },
+  ];
+
+  // Empty by default — first issued document will come from HR via the new flow.
+  const issuedDocuments: IssuedDocument[] = [];
+
   return {
     employees,
     loans,
@@ -204,6 +361,16 @@ function build(): Store {
     deductions,
     audit,
     freezeSettings,
+    salaryUpgrades,
+    attachments,
+    attendance,
+    leaveRequests,
+    leaveBalances,
+    projects,
+    notes,
+    employeeActivity,
+    evaluations,
+    issuedDocuments,
     nextId: n,
   };
 }
@@ -234,7 +401,22 @@ export function _internalGetStore(): Store {
   return G.__somionStore;
 }
 export function _internalSetStore(next: Store) {
-  G.__somionStore = next;
+  // Forward-compatible: snapshots saved before the employee-details-page
+  // entities were added won't have these arrays. Default to [] so the page
+  // doesn't crash trying to .filter() undefined.
+  G.__somionStore = {
+    ...next,
+    salaryUpgrades: next.salaryUpgrades ?? [],
+    attachments: next.attachments ?? [],
+    attendance: next.attendance ?? [],
+    leaveRequests: next.leaveRequests ?? [],
+    leaveBalances: next.leaveBalances ?? [],
+    projects: next.projects ?? [],
+    notes: next.notes ?? [],
+    employeeActivity: next.employeeActivity ?? [],
+    evaluations: next.evaluations ?? [],
+    issuedDocuments: next.issuedDocuments ?? [],
+  };
 }
 
 function id(prefix: string) {
@@ -248,6 +430,44 @@ function nowIso() {
 export const db = {
   listEmployees: () => [...s.employees],
   getEmployee: (id: string) => s.employees.find((e) => e.id === id) ?? null,
+
+  addEmployee(input: Omit<Employee, "id">) {
+    const emp: Employee = { ...input, id: id("emp") };
+    s.employees.push(emp);
+    return emp;
+  },
+  // Generic patcher for top-level Employee fields (excluding `bank`, which is
+  // nested — see updateEmployeeBank). Pass any subset of editable fields.
+  updateEmployee(empId: string, patch: Partial<Omit<Employee, "id" | "bank">>) {
+    const e = s.employees.find((x) => x.id === empId);
+    if (e) Object.assign(e, patch);
+    return e ?? null;
+  },
+  updateEmployeeBank(empId: string, bankPatch: Partial<Employee["bank"]>) {
+    const e = s.employees.find((x) => x.id === empId);
+    if (e) Object.assign(e.bank, bankPatch);
+    return e ?? null;
+  },
+  // Add a salary-upgrade history row AND bump the employee's basicSalary
+  // so future runs use the new amount. Percentage is precomputed.
+  addSalaryUpgrade(empId: string, newSalary: number) {
+    const e = s.employees.find((x) => x.id === empId);
+    if (!e) return null;
+    const oldSalary = e.basicSalary;
+    const percentage =
+      oldSalary > 0 ? Math.round(((newSalary - oldSalary) / oldSalary) * 100) : 0;
+    const su: SalaryUpgrade = {
+      id: id("su"),
+      employeeId: empId,
+      date: nowIso(),
+      oldSalary,
+      newSalary,
+      percentage,
+    };
+    s.salaryUpgrades.push(su);
+    e.basicSalary = newSalary;
+    return su;
+  },
 
   listRuns: (frequency?: PayrollFrequency) =>
     s.runs
@@ -406,6 +626,106 @@ export const db = {
     };
     s.audit.push(a);
     return a;
+  },
+
+  // ── Employee details page reads ──
+  listEmployeeSalaryUpgrades: (empId: string) =>
+    s.salaryUpgrades.filter((u) => u.employeeId === empId).sort((a, b) => (a.date < b.date ? 1 : -1)),
+  listEmployeeAttachments: (empId: string) =>
+    s.attachments.filter((a) => a.employeeId === empId),
+  listEmployeeAttendance: (empId: string) =>
+    s.attendance.filter((a) => a.employeeId === empId).sort((a, b) => (a.date < b.date ? 1 : -1)),
+  listEmployeeLeaveRequests: (empId: string) =>
+    s.leaveRequests.filter((l) => l.employeeId === empId).sort((a, b) => (a.dateFrom < b.dateFrom ? 1 : -1)),
+  getEmployeeLeaveBalance: (empId: string) =>
+    s.leaveBalances.find((b) => b.employeeId === empId) ?? null,
+  listEmployeeProjects: (empId: string) => s.projects.filter((p) => p.employeeId === empId),
+  listEmployeeNotes: (empId: string) =>
+    s.notes.filter((n) => n.employeeId === empId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+  listEmployeeActivity: (empId: string) =>
+    s.employeeActivity.filter((a) => a.employeeId === empId).sort((a, b) => (a.at < b.at ? 1 : -1)),
+
+  // ── Cross-run aggregations for the Finance and Payroll History tabs ──
+  listAllBonusesForEmployee: (empId: string) =>
+    s.bonuses.filter((b) => b.employeeId === empId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+  listAllDeductionsForEmployee: (empId: string) =>
+    s.deductions.filter((d) => d.employeeId === empId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+  // PAID rows for an employee, paired with their PayrollRun, sorted by paidAt desc.
+  listPaidRunItemsForEmployee: (empId: string) => {
+    const items = s.runItems
+      .filter((ri) => ri.employeeId === empId && ri.status === "PAID")
+      .sort((a, b) => ((a.paidAt ?? "") < (b.paidAt ?? "") ? 1 : -1));
+    return items.map((item) => ({
+      item,
+      run: s.runs.find((r) => r.id === item.runId)!,
+    }));
+  },
+
+  // ── Notes CRUD ──
+  addNote(input: Omit<Note, "id" | "createdAt">) {
+    const n: Note = { ...input, id: id("note"), createdAt: nowIso() };
+    s.notes.push(n);
+    return n;
+  },
+  updateNote(noteId: string, patch: Partial<Pick<Note, "title" | "body">>) {
+    const n = s.notes.find((x) => x.id === noteId);
+    if (n) Object.assign(n, patch);
+    return n ?? null;
+  },
+  removeNote(noteId: string) {
+    const i = s.notes.findIndex((n) => n.id === noteId);
+    if (i >= 0) s.notes.splice(i, 1);
+  },
+
+  // ── Attachments (metadata-only — no real file upload in this demo) ──
+  addAttachment(input: Omit<Attachment, "id" | "uploadedAt">) {
+    const a: Attachment = { ...input, id: id("att"), uploadedAt: nowIso() };
+    s.attachments.push(a);
+    return a;
+  },
+  removeAttachment(attachmentId: string) {
+    const i = s.attachments.findIndex((a) => a.id === attachmentId);
+    if (i >= 0) s.attachments.splice(i, 1);
+  },
+
+  // ── Evaluations ──
+  addEvaluation(input: Omit<Evaluation, "id">) {
+    const ev: Evaluation = { ...input, id: id("ev") };
+    s.evaluations.push(ev);
+    return ev;
+  },
+  setEvaluationEmailStatus(evalId: string, status: EmailDeliveryStatus) {
+    const ev = s.evaluations.find((x) => x.id === evalId);
+    if (ev) ev.emailStatus = status;
+  },
+  listEvaluationsForEmployee: (empId: string) =>
+    s.evaluations
+      .filter((e) => e.employeeId === empId)
+      .sort((a, b) => (a.evaluatedAt < b.evaluatedAt ? 1 : -1)),
+  getEvaluation: (evalId: string) =>
+    s.evaluations.find((e) => e.id === evalId) ?? null,
+
+  // ── Issued documents (experience certificate / HR letter) ──
+  addIssuedDocument(input: Omit<IssuedDocument, "id">) {
+    const d: IssuedDocument = { ...input, id: id("doc") };
+    s.issuedDocuments.push(d);
+    return d;
+  },
+  setIssuedDocumentEmailStatus(docId: string, status: EmailDeliveryStatus) {
+    const d = s.issuedDocuments.find((x) => x.id === docId);
+    if (d) d.emailStatus = status;
+  },
+  listIssuedDocumentsForEmployee: (empId: string) =>
+    s.issuedDocuments
+      .filter((d) => d.employeeId === empId)
+      .sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1)),
+  getIssuedDocument: (docId: string) =>
+    s.issuedDocuments.find((d) => d.id === docId) ?? null,
+
+  // ── Payslip email status on RunItem ──
+  setRunItemPayslipEmailStatus(itemId: string, status: EmailDeliveryStatus) {
+    const it = s.runItems.find((x) => x.id === itemId);
+    if (it) it.payslipEmailStatus = status;
   },
 };
 

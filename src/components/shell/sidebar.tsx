@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, CheckCircle2, CircleDollarSign } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  CircleDollarSign,
+  LayoutDashboard,
+  Users,
+} from "lucide-react";
 import { useCurrentRole } from "./role-switcher";
 import type { Role } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
@@ -18,9 +24,11 @@ interface NavItem {
 // for; the sidebar hides items the active role doesn't need so HR doesn't
 // see Finance's queue (and vice versa).
 const ITEMS: NavItem[] = [
+  { href: "/employees", label: "Employees", icon: Users, roles: ["HR", "ADMIN"] },
   { href: "/payroll", label: "Payroll", icon: CalendarClock, roles: ["HR"] },
   { href: "/admin/approvals", label: "Approvals", icon: CheckCircle2, roles: ["ADMIN"] },
   { href: "/finance/queue", label: "Finance Queue", icon: CircleDollarSign, roles: ["FINANCE"] },
+  { href: "/me", label: "My Dashboard", icon: LayoutDashboard, roles: ["EMPLOYEE"] },
 ];
 
 export function Sidebar() {
