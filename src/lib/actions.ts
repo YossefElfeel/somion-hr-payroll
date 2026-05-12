@@ -10,6 +10,7 @@ import {
 } from "./domain/state-machine";
 import {
   EVALUATION_CATEGORIES,
+  type AmountSpec,
   type Employee,
   type EvaluationCategory,
   type EvaluationScore,
@@ -19,6 +20,7 @@ import {
   type PayrollFrequency,
   type Role,
 } from "./domain/types";
+import { resolveAmount } from "./domain/totals";
 import {
   sendDocumentEmail,
   sendEvaluationEmail,
@@ -73,14 +75,14 @@ export async function startRun(input: {
 export async function addBonus(input: {
   runId: string;
   employeeId: string;
-  amount: number;
+  spec: AmountSpec;
   reason: string;
 }) {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Bonus amount must be a positive number");
+  if (!Number.isFinite(input.spec.value) || input.spec.value <= 0) {
+    throw new Error("Bonus value must be a positive number");
   }
   const item = db.getRunItem(input.runId, input.employeeId);
   if (!item) throw new Error("Employee is not in this run");
@@ -89,16 +91,25 @@ export async function addBonus(input: {
       `Cannot add bonus: employee is ${item.status} on a ${run.state} run`,
     );
   }
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  // Resolve to CHF against the *current* basicSalary. This freezes the
+  // value at issue time so a later raise doesn't retroactively change it.
+  const amount = resolveAmount(input.spec, emp.basicSalary);
+  if (amount <= 0) {
+    throw new Error("Resolved bonus amount must be positive");
+  }
   const b = db.addBonus({
     runId: input.runId,
     employeeId: input.employeeId,
-    amount: input.amount,
+    amount,
+    spec: input.spec,
     reason: input.reason,
   });
   db.appendAudit({
     runId: input.runId,
     ...actor("HR"),
-    action: `Added bonus ${input.amount} CHF`,
+    action: `Added bonus ${amount} CHF`,
     note: input.reason,
   });
   await refresh();
@@ -108,14 +119,14 @@ export async function addBonus(input: {
 export async function addDeduction(input: {
   runId: string;
   employeeId: string;
-  amount: number;
+  spec: AmountSpec;
   reason: string;
 }) {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Deduction amount must be a positive number");
+  if (!Number.isFinite(input.spec.value) || input.spec.value <= 0) {
+    throw new Error("Deduction value must be a positive number");
   }
   const item = db.getRunItem(input.runId, input.employeeId);
   if (!item) throw new Error("Employee is not in this run");
@@ -124,17 +135,24 @@ export async function addDeduction(input: {
       `Cannot add deduction: employee is ${item.status} on a ${run.state} run`,
     );
   }
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  const amount = resolveAmount(input.spec, emp.basicSalary);
+  if (amount <= 0) {
+    throw new Error("Resolved deduction amount must be positive");
+  }
   const d = db.addDeduction({
     runId: input.runId,
     employeeId: input.employeeId,
-    amount: input.amount,
+    amount,
+    spec: input.spec,
     reason: input.reason,
     source: "MANUAL",
   });
   db.appendAudit({
     runId: input.runId,
     ...actor("HR"),
-    action: `Added deduction ${input.amount} CHF`,
+    action: `Added deduction ${amount} CHF`,
     note: input.reason,
   });
   await refresh();
@@ -467,14 +485,14 @@ export async function addExtraLoanRepayment(input: {
 export async function updateBonus(input: {
   runId: string;
   bonusId: string;
-  amount: number;
+  spec: AmountSpec;
   reason: string;
 }) {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Bonus amount must be a positive number");
+  if (!Number.isFinite(input.spec.value) || input.spec.value <= 0) {
+    throw new Error("Bonus value must be a positive number");
   }
   const bonus = db.getBonus(input.bonusId);
   if (!bonus) throw new Error("Bonus not found");
@@ -485,11 +503,21 @@ export async function updateBonus(input: {
       `Cannot edit a bonus on a ${item.status} row in a ${run.state} run`,
     );
   }
-  db.updateBonus(input.bonusId, { amount: input.amount, reason: input.reason });
+  const emp = db.getEmployee(bonus.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  const amount = resolveAmount(input.spec, emp.basicSalary);
+  if (amount <= 0) {
+    throw new Error("Resolved bonus amount must be positive");
+  }
+  db.updateBonus(input.bonusId, {
+    amount,
+    spec: input.spec,
+    reason: input.reason,
+  });
   db.appendAudit({
     runId: input.runId,
     ...actor("HR"),
-    action: `Edited a bonus → ${input.amount} CHF`,
+    action: `Edited a bonus → ${amount} CHF`,
     note: input.reason,
   });
   await refresh();
@@ -498,14 +526,14 @@ export async function updateBonus(input: {
 export async function updateDeduction(input: {
   runId: string;
   deductionId: string;
-  amount: number;
+  spec: AmountSpec;
   reason: string;
 }) {
   await init();
   const run = db.getRun(input.runId);
   if (!run) throw new Error("Run not found");
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Deduction amount must be a positive number");
+  if (!Number.isFinite(input.spec.value) || input.spec.value <= 0) {
+    throw new Error("Deduction value must be a positive number");
   }
   const ded = db.getDeduction(input.deductionId);
   if (!ded) throw new Error("Deduction not found");
@@ -521,14 +549,21 @@ export async function updateDeduction(input: {
       `Cannot edit a deduction on a ${item.status} row in a ${run.state} run`,
     );
   }
+  const emp = db.getEmployee(ded.employeeId);
+  if (!emp) throw new Error("Employee not found");
+  const amount = resolveAmount(input.spec, emp.basicSalary);
+  if (amount <= 0) {
+    throw new Error("Resolved deduction amount must be positive");
+  }
   db.updateDeduction(input.deductionId, {
-    amount: input.amount,
+    amount,
+    spec: input.spec,
     reason: input.reason,
   });
   db.appendAudit({
     runId: input.runId,
     ...actor("HR"),
-    action: `Edited a deduction → ${input.amount} CHF`,
+    action: `Edited a deduction → ${amount} CHF`,
     note: input.reason,
   });
   await refresh();

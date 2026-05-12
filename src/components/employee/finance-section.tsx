@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Bonus, Deduction, Loan, PayrollRun, RunItem } from "@/lib/domain/types";
+import { formatAmountSpec } from "@/lib/domain/totals";
 import { EmployeeSection } from "./section";
 
 type Tab = "payroles" | "bonus" | "deductions" | "loans";
@@ -64,8 +65,12 @@ export function FinanceSection({
           basicSalary={basicSalary}
         />
       )}
-      {tab === "bonus" && <BonusTable bonuses={bonuses} runs={runs} />}
-      {tab === "deductions" && <DeductionsTable deductions={deductions} runs={runs} />}
+      {tab === "bonus" && (
+        <BonusTable bonuses={bonuses} runs={runs} basicSalary={basicSalary} />
+      )}
+      {tab === "deductions" && (
+        <DeductionsTable deductions={deductions} runs={runs} basicSalary={basicSalary} />
+      )}
       {tab === "loans" && <LoansTable loans={loans} />}
     </EmployeeSection>
   );
@@ -146,7 +151,15 @@ function PayrolesTable({
   );
 }
 
-function BonusTable({ bonuses, runs }: { bonuses: Bonus[]; runs: PayrollRun[] }) {
+function BonusTable({
+  bonuses,
+  runs,
+  basicSalary,
+}: {
+  bonuses: Bonus[];
+  runs: PayrollRun[];
+  basicSalary: number;
+}) {
   if (bonuses.length === 0) return <Empty>No bonuses issued yet.</Empty>;
   const runById = new Map(runs.map((r) => [r.id, r]));
   return (
@@ -166,7 +179,9 @@ function BonusTable({ bonuses, runs }: { bonuses: Bonus[]; runs: PayrollRun[] })
                 {runById.get(b.runId)?.periodLabel ?? formatDate(b.createdAt)}
               </td>
               <td className="px-3 py-2 font-medium text-emerald-700">
-                {b.amount.toLocaleString()} CHF
+                {b.spec
+                  ? formatAmountSpec(b.spec, basicSalary)
+                  : `${b.amount.toLocaleString()} CHF`}
               </td>
               <td className="px-3 py-2 text-slate-600">{b.reason}</td>
             </tr>
@@ -180,9 +195,11 @@ function BonusTable({ bonuses, runs }: { bonuses: Bonus[]; runs: PayrollRun[] })
 function DeductionsTable({
   deductions,
   runs,
+  basicSalary,
 }: {
   deductions: Deduction[];
   runs: PayrollRun[];
+  basicSalary: number;
 }) {
   const manual = deductions.filter((d) => d.source === "MANUAL");
   if (manual.length === 0) return <Empty>No deductions issued yet.</Empty>;
@@ -204,7 +221,9 @@ function DeductionsTable({
                 {runById.get(d.runId)?.periodLabel ?? formatDate(d.createdAt)}
               </td>
               <td className="px-3 py-2 font-medium text-red-700">
-                {d.amount.toLocaleString()} CHF
+                {d.spec
+                  ? formatAmountSpec(d.spec, basicSalary)
+                  : `${d.amount.toLocaleString()} CHF`}
               </td>
               <td className="px-3 py-2 text-slate-600">{d.reason}</td>
             </tr>

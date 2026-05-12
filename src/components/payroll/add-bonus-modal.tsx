@@ -3,9 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { Label, Select, Textarea } from "@/components/ui/input";
 import { addBonus } from "@/lib/actions";
-import type { Employee } from "@/lib/domain/types";
+import type { AmountKind, Employee } from "@/lib/domain/types";
+import { AmountSpecInput } from "./amount-spec-input";
 
 export function AddBonusModal({
   open,
@@ -21,7 +22,8 @@ export function AddBonusModal({
   defaultEmployeeId?: string;
 }) {
   const [empId, setEmpId] = useState(defaultEmployeeId ?? "");
-  const [amount, setAmount] = useState("");
+  const [kind, setKind] = useState<AmountKind>("FIXED");
+  const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +35,17 @@ export function AddBonusModal({
 
   function reset() {
     setEmpId(defaultEmployeeId ?? "");
-    setAmount("");
+    setKind("FIXED");
+    setValue("");
     setReason("");
     setError(null);
   }
+
+  const selectedEmployee = employees.find((e) => e.id === empId) ?? null;
+  const numericValue = Number(value);
+  const validValue =
+    value.length > 0 && Number.isFinite(numericValue) && numericValue > 0;
+  const canSubmit = !!empId && validValue;
 
   return (
     <Modal
@@ -60,7 +69,7 @@ export function AddBonusModal({
             Cancel
           </Button>
           <Button
-            disabled={pending || !empId || !amount || Number(amount) <= 0}
+            disabled={pending || !canSubmit}
             onClick={() => {
               setError(null);
               startTransition(async () => {
@@ -68,7 +77,7 @@ export function AddBonusModal({
                   await addBonus({
                     runId,
                     employeeId: empId,
-                    amount: Number(amount),
+                    spec: { kind, value: numericValue },
                     reason,
                   });
                   reset();
@@ -104,17 +113,16 @@ export function AddBonusModal({
             ))}
           </Select>
         </div>
-        <div>
-          <Label>Bonus (CHF)</Label>
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter Bonus Amount"
-          />
-        </div>
+
+        <AmountSpecInput
+          basicSalary={selectedEmployee?.basicSalary ?? null}
+          kind={kind}
+          value={value}
+          onKindChange={setKind}
+          onValueChange={setValue}
+          label="Bonus"
+        />
+
         <div>
           <Label>Bonus Reason</Label>
           <Textarea

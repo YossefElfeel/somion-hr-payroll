@@ -55,11 +55,31 @@ export interface Employee {
   skills?: string[];
 }
 
+// How HR expressed the bonus or deduction amount. We resolve a spec into a
+// CHF `amount` at issue time and freeze it on the row — see resolveAmount()
+// and the plan note at .claude/plans/...
+export type AmountKind = "FIXED" | "DAYS" | "PERCENT" | "MONTHS";
+
+export interface AmountSpec {
+  kind: AmountKind;
+  // Raw input HR typed:
+  //   FIXED   -> CHF amount
+  //   DAYS    -> number of days (multiplied by basicSalary / 30)
+  //   PERCENT -> percentage 0-100+ (multiplied by basicSalary / 100)
+  //   MONTHS  -> number of months (multiplied by basicSalary)
+  value: number;
+}
+
 export interface Bonus {
   id: string;
   employeeId: string;
   runId: string;
+  // Resolved CHF — source of truth for totals. Frozen at issue time so a
+  // later raise doesn't retroactively grow past bonuses.
   amount: number;
+  // Records what HR typed. Optional for back-compat with rows seeded
+  // (or stored in Redis) before the type selector existed.
+  spec?: AmountSpec;
   reason: string;
   createdAt: string;
 }
@@ -69,6 +89,7 @@ export interface Deduction {
   employeeId: string;
   runId: string;
   amount: number;
+  spec?: AmountSpec;
   reason: string;
   // 'LOAN_INSTALLMENT' deductions are auto-attached by the loan system; users cannot delete them directly.
   source: "MANUAL" | "LOAN_INSTALLMENT" | "EXTRA_LOAN_REPAYMENT";
