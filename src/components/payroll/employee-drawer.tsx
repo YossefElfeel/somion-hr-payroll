@@ -5,7 +5,7 @@ import { AlertCircle, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
-import { computeTotals, formatCHF } from "@/lib/domain/totals";
+import { computeTotals, formatAmountSpec, formatCHF } from "@/lib/domain/totals";
 import { deleteBonus, deleteDeduction } from "@/lib/actions";
 import { isRowEditable } from "@/lib/domain/state-machine";
 import type {
@@ -130,7 +130,12 @@ export function EmployeeDrawer({
                   key={b.id}
                   indent
                   label={b.reason || "Bonus"}
-                  value={`+${formatCHF(b.amount)}`}
+                  value={
+                    "+" +
+                    (b.spec
+                      ? formatAmountSpec(b.spec, employee.basicSalary)
+                      : formatCHF(b.amount))
+                  }
                   positive
                 />
               ))}
@@ -150,7 +155,12 @@ export function EmployeeDrawer({
                   key={d.id}
                   indent
                   label={d.reason || "Deduction"}
-                  value={`-${formatCHF(d.amount)}`}
+                  value={
+                    "-" +
+                    (d.spec
+                      ? formatAmountSpec(d.spec, employee.basicSalary)
+                      : formatCHF(d.amount))
+                  }
                   negative
                 />
               ))}
@@ -201,7 +211,10 @@ export function EmployeeDrawer({
                 <li key={b.id} className="flex items-start gap-3 px-3 py-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-emerald-700">
-                      +{formatCHF(b.amount)}
+                      +
+                      {b.spec
+                        ? formatAmountSpec(b.spec, employee.basicSalary)
+                        : formatCHF(b.amount)}
                     </div>
                     <div className="text-xs text-slate-600">{b.reason}</div>
                   </div>
@@ -253,7 +266,10 @@ export function EmployeeDrawer({
                 <li key={d.id} className="flex items-start gap-3 px-3 py-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-red-700">
-                      -{formatCHF(d.amount)}
+                      -
+                      {d.spec
+                        ? formatAmountSpec(d.spec, employee.basicSalary)
+                        : formatCHF(d.amount)}
                     </div>
                     <div className="text-xs text-slate-600">{d.reason}</div>
                   </div>

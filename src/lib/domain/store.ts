@@ -495,29 +495,46 @@ function build(): Store {
     });
   }
 
+  // Seed rows exercise each spec type at least once so the demo shows them:
+  //   FIXED   -> Tahsen's 75 CHF + Mentored bonus
+  //   PERCENT -> Tahsen's quarterly perf bonus (5% of 3000 = 150 CHF)
+  //   MONTHS  -> Joe Root's half-month bonus (0.5 × 3500 = 1750 CHF)
+  //   DAYS    -> Tahsen's 1-day absence deduction (3000 / 30 = 100 CHF)
   const bonuses: Bonus[] = [
     {
       id: id("bon"),
-      employeeId: employees[0].id, // Tahsen — first bonus
+      employeeId: employees[0].id, // Tahsen
       runId: aprilRun.id,
       amount: 75,
+      spec: { kind: "FIXED", value: 75 },
       reason: "Quarterly sales target hit",
       createdAt: "2026-04-08T10:00:00Z",
     },
     {
       id: id("bon"),
-      employeeId: employees[0].id, // Tahsen — second bonus, same month
+      employeeId: employees[0].id, // Tahsen
+      runId: aprilRun.id,
+      amount: 150,
+      spec: { kind: "PERCENT", value: 5 },
+      reason: "Q1 performance bonus",
+      createdAt: "2026-04-15T10:00:00Z",
+    },
+    {
+      id: id("bon"),
+      employeeId: employees[0].id, // Tahsen
       runId: aprilRun.id,
       amount: 50,
+      spec: { kind: "FIXED", value: 50 },
       reason: "Mentored two new hires",
       createdAt: "2026-04-22T14:30:00Z",
     },
     {
       id: id("bon"),
-      employeeId: employees[3].id, // Joe Root
+      employeeId: employees[3].id, // Joe Root (basicSalary 3500)
       runId: aprilRun.id,
-      amount: 75,
-      reason: "Excellent client feedback",
+      amount: 1750,
+      spec: { kind: "MONTHS", value: 0.5 },
+      reason: "Half-month bonus for delivery launch",
       createdAt: nowIso(),
     },
   ];
@@ -525,10 +542,11 @@ function build(): Store {
   const deductions: Deduction[] = [
     {
       id: id("ded"),
-      employeeId: employees[0].id,
+      employeeId: employees[0].id, // Tahsen — DAYS deduction
       runId: aprilRun.id,
-      amount: 50,
-      reason: "A deduction of 50 Swiss Francs for delaying tasks",
+      amount: 100, // 3000 / 30
+      spec: { kind: "DAYS", value: 1 },
+      reason: "Unauthorised absence (1 day)",
       source: "MANUAL",
       createdAt: nowIso(),
     },
@@ -537,6 +555,7 @@ function build(): Store {
       employeeId: employees[5].id,
       runId: aprilRun.id,
       amount: 50,
+      spec: { kind: "FIXED", value: 50 },
       reason: "Late arrivals (3x)",
       source: "MANUAL",
       createdAt: nowIso(),
@@ -1281,14 +1300,17 @@ export const db = {
     const i = s.deductions.findIndex((d) => d.id === deductionId);
     if (i >= 0) s.deductions.splice(i, 1);
   },
-  updateBonus(bonusId: string, patch: Partial<Pick<Bonus, "amount" | "reason">>) {
+  updateBonus(
+    bonusId: string,
+    patch: Partial<Pick<Bonus, "amount" | "spec" | "reason">>,
+  ) {
     const b = s.bonuses.find((x) => x.id === bonusId);
     if (b) Object.assign(b, patch);
     return b ?? null;
   },
   updateDeduction(
     deductionId: string,
-    patch: Partial<Pick<Deduction, "amount" | "reason">>,
+    patch: Partial<Pick<Deduction, "amount" | "spec" | "reason">>,
   ) {
     const d = s.deductions.find((x) => x.id === deductionId);
     if (d) Object.assign(d, patch);

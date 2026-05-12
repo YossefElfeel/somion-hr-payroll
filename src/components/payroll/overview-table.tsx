@@ -392,12 +392,14 @@ export function OverviewTable({
         onClose={() => setEditBonus(null)}
         runId={run.id}
         bonus={editBonus}
+        employees={employees}
       />
       <EditDeductionModal
         open={!!editDeduction}
         onClose={() => setEditDeduction(null)}
         runId={run.id}
         deduction={editDeduction}
+        employees={employees}
       />
       <EmployeeDrawer
         open={!!drawerEmployeeId}
