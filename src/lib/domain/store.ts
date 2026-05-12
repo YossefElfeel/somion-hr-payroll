@@ -102,26 +102,341 @@ function build(): Store {
     };
   }
 
-  // Enrich the first employee with the rich mockup profile so the demo page
-  // renders the same data as the design.
-  Object.assign(employees[0], {
-    avatar: undefined,
-    phone: "01893531209",
-    dob: "2001-05-23",
-    gender: "Male",
-    nationality: "Egypt",
-    nationalId: "200242686565",
-    accommodationType: "Company housing",
-    taxId: "—",
-    postCode: "31001",
-    address: "Sylhet city",
-    jobTitle: "Product Designer",
-    employeeType: "Fulltime",
-    managerId: employees[0].id, // self for demo (mockup shows Tahsen Khan)
-    joinDate: "2024-01-02",
-    workLocation: "Remote",
-    status: "Active",
-    skills: ["UI Design", "Product Design", "Website Design", "Webapp Design", "Dashboard Design"],
+  // Per-employee profile enrichment. One row per slot in `employees[]` — the
+  // index matches. managerIdx points into the same array (or undefined for
+  // top-of-tree). Bank info is varied so different employees clearly have
+  // different accounts in the UI.
+  type ProfileSeed = {
+    phone: string;
+    dob: string;
+    gender: "Male" | "Female" | "Other";
+    nationality: string;
+    nationalId: string;
+    accommodationType: string;
+    taxId: string;
+    postCode: string;
+    address: string;
+    jobTitle: string;
+    employeeType: "Fulltime" | "Parttime" | "Contractor" | "Intern";
+    managerIdx?: number;
+    joinDate: string;
+    workLocation: "Remote" | "Onsite" | "Hybrid";
+    status: "Active" | "Inactive" | "On leave";
+    skills: string[];
+    bank: {
+      bankName: string;
+      accountName: string;
+      accountNo: string;
+      iban: string;
+    };
+  };
+  const PROFILES: ProfileSeed[] = [
+    // 0 — Tahsen Khan (Sales / Product Designer). Matches the design mockup.
+    {
+      phone: "01893531209",
+      dob: "2001-05-23",
+      gender: "Male",
+      nationality: "Egypt",
+      nationalId: "200242686565",
+      accommodationType: "Company housing",
+      taxId: "EG-TAX-200242",
+      postCode: "31001",
+      address: "Sylhet city",
+      jobTitle: "Product Designer",
+      employeeType: "Fulltime",
+      managerIdx: 6, // David Warner
+      joinDate: "2024-01-02",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["UI Design", "Product Design", "Website Design", "Webapp Design", "Dashboard Design"],
+      bank: {
+        bankName: "CIB Bank",
+        accountName: "Tahsen Khan",
+        accountNo: "64736457588436478",
+        iban: "EG93 0076 2011 6238 5295 7",
+      },
+    },
+    // 1 — Harry Kane (Sales)
+    {
+      phone: "+44 7700 900111",
+      dob: "1993-07-28",
+      gender: "Male",
+      nationality: "United Kingdom",
+      nationalId: "GB-PA-447928112",
+      accommodationType: "Private rental",
+      taxId: "QQ-12-34-56-A",
+      postCode: "E1 6AN",
+      address: "12 Old Street, London",
+      jobTitle: "Senior Sales Executive",
+      employeeType: "Fulltime",
+      managerIdx: 6,
+      joinDate: "2022-03-15",
+      workLocation: "Hybrid",
+      status: "Active",
+      skills: ["Negotiation", "Outbound", "Account Management", "Salesforce"],
+      bank: {
+        bankName: "Barclays",
+        accountName: "Harry Kane",
+        accountNo: "20583946",
+        iban: "GB29 BARC 2058 3946 1234 56",
+      },
+    },
+    // 2 — Jaman Khan (Engineering manager)
+    {
+      phone: "+880 1711 020303",
+      dob: "1988-11-12",
+      gender: "Male",
+      nationality: "Bangladesh",
+      nationalId: "BD-1988-04123",
+      accommodationType: "Owned",
+      taxId: "BD-NBR-99812",
+      postCode: "1212",
+      address: "House 14, Road 11, Banani, Dhaka",
+      jobTitle: "Engineering Manager",
+      employeeType: "Fulltime",
+      // No managerIdx — top of engineering tree.
+      joinDate: "2019-08-01",
+      workLocation: "Hybrid",
+      status: "Active",
+      skills: ["Team leadership", "System design", "TypeScript", "AWS", "Hiring"],
+      bank: {
+        bankName: "BRAC Bank",
+        accountName: "Jaman Khan",
+        accountNo: "152034201199",
+        iban: "BD15 BRAC 1520 3420 1199 88",
+      },
+    },
+    // 3 — Joe Root (Engineering)
+    {
+      phone: "+44 7700 900222",
+      dob: "1990-12-30",
+      gender: "Male",
+      nationality: "United Kingdom",
+      nationalId: "GB-PA-447902223",
+      accommodationType: "Private rental",
+      taxId: "WS-44-22-11-B",
+      postCode: "S1 2HE",
+      address: "44 Westfield Road, Sheffield",
+      jobTitle: "Senior Software Engineer",
+      employeeType: "Fulltime",
+      managerIdx: 2,
+      joinDate: "2021-06-14",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["TypeScript", "Next.js", "PostgreSQL", "Distributed systems"],
+      bank: {
+        bankName: "Lloyds",
+        accountName: "Joe Root",
+        accountNo: "11445566",
+        iban: "GB29 LOYD 3098 1234 5678 90",
+      },
+    },
+    // 4 — Jaman Roy (Operations lead)
+    {
+      phone: "+880 1711 040404",
+      dob: "1989-04-04",
+      gender: "Male",
+      nationality: "Bangladesh",
+      nationalId: "BD-1989-08741",
+      accommodationType: "Owned",
+      taxId: "BD-NBR-77234",
+      postCode: "1207",
+      address: "Block C, Mirpur, Dhaka",
+      jobTitle: "Operations Lead",
+      employeeType: "Fulltime",
+      joinDate: "2020-02-10",
+      workLocation: "Onsite",
+      status: "Active",
+      skills: ["Process design", "Vendor management", "Excel", "Procurement"],
+      bank: {
+        bankName: "Eastern Bank",
+        accountName: "Jaman Roy",
+        accountNo: "390202010044",
+        iban: "BD93 EBL 3902 0201 0044 11",
+      },
+    },
+    // 5 — James Henry (Operations)
+    {
+      phone: "+1 415 555 0156",
+      dob: "1992-09-19",
+      gender: "Male",
+      nationality: "United States",
+      nationalId: "US-555-12-3456",
+      accommodationType: "Private rental",
+      taxId: "555-12-3456",
+      postCode: "94110",
+      address: "1812 Valencia St, San Francisco, CA",
+      jobTitle: "Operations Analyst",
+      employeeType: "Fulltime",
+      managerIdx: 4,
+      joinDate: "2023-05-22",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["Data analysis", "SQL", "Operations research", "Tableau"],
+      bank: {
+        bankName: "Wells Fargo",
+        accountName: "James Henry",
+        accountNo: "9001020304",
+        iban: "US98 WFGO 9001 0203 0411 22",
+      },
+    },
+    // 6 — David Warner (Sales manager)
+    {
+      phone: "+61 412 345 678",
+      dob: "1986-10-27",
+      gender: "Male",
+      nationality: "Australia",
+      nationalId: "AU-PA-99012345",
+      accommodationType: "Owned",
+      taxId: "AU-TFN-321098765",
+      postCode: "2000",
+      address: "55 George Street, Sydney NSW",
+      jobTitle: "Head of Sales",
+      employeeType: "Fulltime",
+      joinDate: "2018-11-05",
+      workLocation: "Hybrid",
+      status: "Active",
+      skills: ["Sales strategy", "Forecasting", "Pipeline ops", "Coaching", "HubSpot"],
+      bank: {
+        bankName: "Commonwealth Bank",
+        accountName: "David Warner",
+        accountNo: "06210123456",
+        iban: "AU49 CBA 06210 1234 5612",
+      },
+    },
+    // 7 — Harry Brooks (Engineering)
+    {
+      phone: "+44 7700 900333",
+      dob: "1996-08-06",
+      gender: "Male",
+      nationality: "United Kingdom",
+      nationalId: "GB-PA-447902113",
+      accommodationType: "Private rental",
+      taxId: "RR-22-33-44-C",
+      postCode: "M1 5DD",
+      address: "9 Whitworth Street, Manchester",
+      jobTitle: "Backend Engineer",
+      employeeType: "Fulltime",
+      managerIdx: 2,
+      joinDate: "2023-09-01",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["Go", "PostgreSQL", "Kafka", "Kubernetes"],
+      bank: {
+        bankName: "HSBC UK",
+        accountName: "Harry Brooks",
+        accountNo: "70123456",
+        iban: "GB29 HBUK 4010 6612 3456 78",
+      },
+    },
+    // 8 — Tim David (Engineering)
+    {
+      phone: "+65 9123 4567",
+      dob: "1994-03-14",
+      gender: "Male",
+      nationality: "Singapore",
+      nationalId: "SG-S9412345A",
+      accommodationType: "Private rental",
+      taxId: "SG-IRAS-S9412345A",
+      postCode: "049315",
+      address: "1 Raffles Place, Singapore",
+      jobTitle: "Frontend Engineer",
+      employeeType: "Fulltime",
+      managerIdx: 2,
+      joinDate: "2022-08-20",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["React", "TypeScript", "Tailwind", "Design systems"],
+      bank: {
+        bankName: "DBS",
+        accountName: "Tim David",
+        accountNo: "0723456789",
+        iban: "SG10 DBSS 0723 4567 8901 22",
+      },
+    },
+    // 9 — Casey Briggs (Design, weekly)
+    {
+      phone: "+1 312 555 0190",
+      dob: "1998-02-22",
+      gender: "Female",
+      nationality: "United States",
+      nationalId: "US-555-99-0042",
+      accommodationType: "Shared housing",
+      taxId: "555-99-0042",
+      postCode: "60607",
+      address: "200 W Madison St, Chicago, IL",
+      jobTitle: "Visual Designer",
+      employeeType: "Parttime",
+      managerIdx: 0,
+      joinDate: "2024-06-10",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["Branding", "Illustration", "Figma", "Motion"],
+      bank: {
+        bankName: "Chase",
+        accountName: "Casey Briggs",
+        accountNo: "555012345",
+        iban: "US98 CHAS 5550 1234 5678 90",
+      },
+    },
+    // 10 — Pat Gibbs (Operations, biweekly) — currently on leave
+    {
+      phone: "+27 82 555 0123",
+      dob: "1985-05-09",
+      gender: "Female",
+      nationality: "South Africa",
+      nationalId: "ZA-8505090123080",
+      accommodationType: "Owned",
+      taxId: "ZA-SARS-9012345",
+      postCode: "8001",
+      address: "12 Long Street, Cape Town",
+      jobTitle: "Office Manager",
+      employeeType: "Fulltime",
+      managerIdx: 4,
+      joinDate: "2020-10-30",
+      workLocation: "Onsite",
+      status: "On leave",
+      skills: ["Logistics", "Travel coordination", "Vendor relations"],
+      bank: {
+        bankName: "Standard Bank",
+        accountName: "Pat Gibbs",
+        accountNo: "120304050607",
+        iban: "ZA13 SBZA 1203 0405 0607 80",
+      },
+    },
+    // 11 — Sara Lin (Contractor, hourly)
+    {
+      phone: "+1 646 555 0181",
+      dob: "1997-12-01",
+      gender: "Female",
+      nationality: "Canada",
+      nationalId: "CA-PR-887766554",
+      accommodationType: "Private rental",
+      taxId: "CA-CRA-887766",
+      postCode: "M5H 2N2",
+      address: "100 King St W, Toronto, ON",
+      jobTitle: "Data Analyst (Contract)",
+      employeeType: "Contractor",
+      managerIdx: 4,
+      joinDate: "2025-09-15",
+      workLocation: "Remote",
+      status: "Active",
+      skills: ["Python", "Pandas", "SQL", "Looker"],
+      bank: {
+        bankName: "RBC",
+        accountName: "Sara Lin",
+        accountNo: "002345678",
+        iban: "CA12 RBC 0023 4567 8987 65",
+      },
+    },
+  ];
+
+  PROFILES.forEach((p, i) => {
+    const { managerIdx, bank, ...rest } = p;
+    Object.assign(employees[i], rest, {
+      managerId: managerIdx !== undefined ? employees[managerIdx].id : undefined,
+      bank,
+    });
   });
 
   const loans: Loan[] = [
@@ -351,6 +666,256 @@ function build(): Store {
 
   // Empty by default — first issued document will come from HR via the new flow.
   const issuedDocuments: IssuedDocument[] = [];
+
+  // ── Mock data for the other 11 employees so every profile renders full ──
+  // Pat Gibbs is "On leave", so they get a `Pending` annual-leave row to
+  // explain the status. Everyone else gets a routine mix of approved time off,
+  // recent attendance, one evaluation, role-relevant projects, and notes.
+
+  // Helper: shift a base date by N days as ISO yyyy-mm-dd.
+  function addDays(base: string, days: number): string {
+    const d = new Date(`${base}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Role-flavoured project blurbs so each employee's Projects section
+  // matches their job rather than copy-pasting "Travel planner".
+  const projectsByDept: Record<string, Array<{ title: string; description: string }>> = {
+    Sales: [
+      { title: "Q2 EMEA pipeline review", description: "Audit top 20 accounts and forecast Q2 close." },
+      { title: "Enterprise onboarding playbook", description: "Document the new enterprise account onboarding sequence." },
+    ],
+    Engineering: [
+      { title: "Payments API v2", description: "Migrate to the new payments provider with zero downtime." },
+      { title: "Observability rollout", description: "Add OpenTelemetry across the booking service." },
+    ],
+    Operations: [
+      { title: "Vendor consolidation", description: "Reduce SaaS spend by consolidating three duplicate tools." },
+      { title: "Office hardware refresh", description: "Replace conference-room AV across the three offices." },
+    ],
+    Design: [
+      { title: "Brand refresh", description: "Refresh the brand system: type, color, illustration." },
+      { title: "Onboarding redesign", description: "Cut the time-to-first-value of the signup flow in half." },
+    ],
+    Contractor: [
+      { title: "Revenue dashboard", description: "Build a leadership dashboard for weekly revenue review." },
+    ],
+  };
+
+  // Skip Tahsen (index 0) — he already has full mock data above.
+  for (let i = 1; i < employees.length; i++) {
+    const emp = employees[i];
+    const baseSalary = emp.basicSalary;
+    const baseDate = "2025-08-01"; // anchor for recency
+    const empSlug = emp.name.split(" ")[0];
+
+    // Salary upgrades — two historical raises (~10-15% each).
+    if (baseSalary > 0) {
+      const step1 = Math.round(baseSalary / 1.1);
+      const step0 = Math.round(step1 / 1.12);
+      salaryUpgrades.push(
+        {
+          id: id("su"),
+          employeeId: emp.id,
+          date: addDays(baseDate, -540), // ~18 months ago
+          oldSalary: step0,
+          newSalary: step1,
+          percentage: Math.round(((step1 - step0) / step0) * 100),
+        },
+        {
+          id: id("su"),
+          employeeId: emp.id,
+          date: addDays(baseDate, -180), // ~6 months ago
+          oldSalary: step1,
+          newSalary: baseSalary,
+          percentage: Math.round(((baseSalary - step1) / step1) * 100),
+        },
+      );
+    }
+
+    // Attachments — contract + identity for everyone; education for fulltime;
+    // military service only for Egyptian employees (none here besides Tahsen),
+    // so just three baseline docs.
+    attachments.push(
+      {
+        id: id("att"),
+        employeeId: emp.id,
+        name: `${empSlug.toLowerCase()}-contract.pdf`,
+        kind: "CONTRACT",
+        sizeBytes: 8_000_000 + i * 250_000,
+        uploadedAt: `${emp.joinDate ?? "2024-01-02"}T09:00:00Z`,
+      },
+      {
+        id: id("att"),
+        employeeId: emp.id,
+        name: `${empSlug.toLowerCase()}-id.pdf`,
+        kind: "IDENTITY",
+        sizeBytes: 2_500_000,
+        uploadedAt: `${emp.joinDate ?? "2024-01-02"}T09:05:00Z`,
+      },
+    );
+    if (emp.employeeType !== "Contractor") {
+      attachments.push({
+        id: id("att"),
+        employeeId: emp.id,
+        name: `${empSlug.toLowerCase()}-education.pdf`,
+        kind: "EDUCATION",
+        sizeBytes: 5_000_000,
+        uploadedAt: `${emp.joinDate ?? "2024-01-02"}T09:10:00Z`,
+      });
+    }
+
+    // Attendance — 6 recent working days with small variance.
+    const attendanceDays = [-10, -9, -8, -7, -4, -3];
+    attendanceDays.forEach((offset, idx) => {
+      const late = idx === 2 || idx === 5;
+      attendance.push({
+        id: id("att"),
+        employeeId: emp.id,
+        date: addDays(baseDate, offset),
+        startWork: late ? "09:18 AM" : "08:55 AM",
+        endWork: "05:30 PM",
+        status: late ? "LATE" : "APPROVED",
+        logHours: "08:12:00",
+        overtimeMin: idx === 0 ? 45 : 0,
+        lateMin: late ? 18 : 0,
+      });
+    });
+
+    // Leave requests — mix of public holiday + one annual leave.
+    leaveRequests.push(
+      {
+        id: id("lr"),
+        employeeId: emp.id,
+        type: "Public Holiday",
+        dateFrom: "2025-12-25",
+        dateTo: "2025-12-25",
+        durationDays: 1,
+        status: "Approved",
+        note: "Automatic public holiday: Christmas Day",
+      },
+      {
+        id: id("lr"),
+        employeeId: emp.id,
+        type: "Public Holiday",
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-01",
+        durationDays: 1,
+        status: "Approved",
+        note: "Automatic public holiday: New Year's Day",
+      },
+      {
+        id: id("lr"),
+        employeeId: emp.id,
+        type: "Annual",
+        dateFrom: emp.status === "On leave" ? addDays(baseDate, 90) : addDays(baseDate, -45),
+        dateTo: emp.status === "On leave" ? addDays(baseDate, 104) : addDays(baseDate, -41),
+        durationDays: emp.status === "On leave" ? 14 : 5,
+        status: emp.status === "On leave" ? "Pending" : "Approved",
+        note:
+          emp.status === "On leave"
+            ? "Family medical leave"
+            : "Spring holiday",
+      },
+    );
+
+    leaveBalances.push({
+      employeeId: emp.id,
+      available: emp.status === "On leave" ? 5 : 17 - (i % 4),
+      pending: emp.status === "On leave" ? 14 : 0,
+      booked: emp.status === "On leave" ? 0 : 5,
+      used: i % 3,
+      contractDays: 24,
+    });
+
+    // Projects — pick role-relevant blurbs and vary status.
+    const blurbs = projectsByDept[emp.department] ?? projectsByDept.Operations;
+    const projectStatuses: Project["status"][] = ["InProgress", "Testing", "Approved"];
+    blurbs.forEach((b, idx) => {
+      projects.push({
+        id: id("prj"),
+        employeeId: emp.id,
+        title: b.title,
+        description: b.description,
+        percentComplete: 40 + idx * 25,
+        status: projectStatuses[idx % projectStatuses.length],
+        dueDate: addDays(baseDate, 30 + idx * 14),
+        members: 2 + (idx % 3),
+        comments: 4 + idx * 3,
+      });
+    });
+
+    // Notes — half of employees get a short HR note for flavour.
+    if (i % 2 === 0) {
+      notes.push({
+        id: id("note"),
+        employeeId: emp.id,
+        title: emp.status === "On leave" ? "On leave through summer" : "Solid teammate",
+        body:
+          emp.status === "On leave"
+            ? "Out on approved family medical leave. Cover handed off to Jaman Roy. Pat is reachable for high-priority handover questions via email only."
+            : `${empSlug} consistently meets deliverables and is well-regarded by their team. Worth considering for the next leadership development cohort.`,
+        createdAt: addDays(baseDate, -120) + "T10:00:00Z",
+      });
+    }
+
+    // Activity feed — recent stable items.
+    employeeActivity.push(
+      {
+        id: id("act"),
+        employeeId: emp.id,
+        at: addDays(baseDate, -2) + "T09:00:00Z",
+        message: `${emp.name} logged in from a new device.`,
+      },
+      {
+        id: id("act"),
+        employeeId: emp.id,
+        at: addDays(baseDate, -7) + "T14:32:00Z",
+        message: `${emp.name} completed the H1 compliance training.`,
+      },
+      {
+        id: id("act"),
+        employeeId: emp.id,
+        at: addDays(baseDate, -21) + "T10:15:00Z",
+        message: `${emp.name} was added to the ${emp.department} department roster.`,
+      },
+    );
+
+    // Evaluation — one prior cycle.
+    const scoreBase = 3 + ((i * 7) % 3); // 3, 4, or 5 — deterministic spread
+    const variance = (n: number) => Math.max(1, Math.min(5, scoreBase + ((n + i) % 3) - 1)) as 1 | 2 | 3 | 4 | 5;
+    const scores = {
+      Performance: variance(0),
+      Communication: variance(1),
+      Teamwork: variance(2),
+      Initiative: variance(3),
+      Punctuality: variance(4),
+    };
+    const overall =
+      (scores.Performance + scores.Communication + scores.Teamwork + scores.Initiative + scores.Punctuality) /
+      EVALUATION_CATEGORIES.length;
+    evaluations.push({
+      id: id("ev"),
+      employeeId: emp.id,
+      periodLabel: "Q4 2025",
+      evaluatedAt: "2026-01-08T09:00:00Z",
+      evaluatedBy: "Yossef",
+      scores,
+      overall,
+      strengths:
+        overall >= 4
+          ? `${empSlug} consistently delivers on commitments and is a strong collaborator across teams.`
+          : `${empSlug} is dependable and reliable on assigned work.`,
+      areasToImprove:
+        overall >= 4
+          ? "Take on more ambiguous problems and bring forward proposals proactively."
+          : "Improve communication on blockers earlier in the week.",
+      goalsNextPeriod: "Pair with a senior on one cross-functional initiative this quarter.",
+      emailedTo: emp.email,
+      emailStatus: "SENT",
+    });
+  }
 
   return {
     employees,
