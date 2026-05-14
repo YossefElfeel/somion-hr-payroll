@@ -178,11 +178,15 @@ export async function sendDocumentEmail(documentId: string) {
     react = ExperienceCertificateEmail({
       employeeName: employee.name,
       position: payload.position,
+      reason: payload.reason ?? "",
+      referenceNumber: doc.referenceNumber,
       dashboardUrl: `${appBaseUrl()}/me`,
       issuedBy: doc.issuedBy,
     });
     subject = `[Somion] Experience Certificate — ${employee.name}`;
-    filename = `experience-certificate-${employee.id}.pdf`;
+    filename = doc.referenceNumber
+      ? `${doc.referenceNumber}.pdf`
+      : `experience-certificate-${employee.id}.pdf`;
   } else {
     const payload = doc.payload as HRLetterPayload;
     pdf = await renderPdf(HRLetterDocument({ doc, employee }));
@@ -194,7 +198,9 @@ export async function sendDocumentEmail(documentId: string) {
       issuedBy: doc.issuedBy,
     });
     subject = `[Somion] HR Letter — ${payload.purpose} — ${employee.name}`;
-    filename = `hr-letter-${employee.id}.pdf`;
+    filename = doc.referenceNumber
+      ? `${doc.referenceNumber}.pdf`
+      : `hr-letter-${employee.id}.pdf`;
   }
 
   const status = await deliver({

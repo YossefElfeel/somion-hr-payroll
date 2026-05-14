@@ -16,11 +16,20 @@ import {
 interface Props {
   employeeName: string;
   position: string;
+  reason: string;
+  referenceNumber?: string;
   dashboardUrl: string;
   issuedBy: string;
 }
 
-export function ExperienceCertificateEmail({ employeeName, position, dashboardUrl, issuedBy }: Props) {
+export function ExperienceCertificateEmail({
+  employeeName,
+  position,
+  reason,
+  referenceNumber,
+  dashboardUrl,
+  issuedBy,
+}: Props) {
   return (
     <Html>
       <Head />
@@ -36,8 +45,16 @@ export function ExperienceCertificateEmail({ employeeName, position, dashboardUr
           <Text style={styles.text}>Hi {employeeName.split(" ")[0]},</Text>
           <Text style={styles.text}>
             Your experience certificate as <strong>{position}</strong> has been
-            issued by {issuedBy} and is attached as a PDF.
+            issued by {issuedBy}
+            {reason ? <> for <strong>{reason}</strong></> : null}, and is
+            attached as a PDF.
           </Text>
+          {referenceNumber && (
+            <Text style={styles.text}>
+              Reference: <strong>{referenceNumber}</strong>. Anyone verifying
+              this document can quote this reference when contacting HR.
+            </Text>
+          )}
           <Text style={styles.text}>
             You can also view, download, and print it any time from your dashboard.
           </Text>

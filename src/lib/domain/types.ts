@@ -287,16 +287,34 @@ export interface Evaluation {
 
 export type IssuedDocumentType = "EXPERIENCE_CERTIFICATE" | "HR_LETTER";
 
+// Shared preset list used by both Experience Certificate and HR Letter
+// modals so HR sees a consistent set of options across both flows. "Other"
+// reveals a free-text field; whatever HR types becomes the `reason` value.
+export const ISSUED_DOCUMENT_REASONS = [
+  "General reference",
+  "Visa application",
+  "New employer reference",
+  "Bank / financial application",
+  "Embassy / consulate request",
+] as const;
+export type IssuedDocumentReasonPreset = (typeof ISSUED_DOCUMENT_REASONS)[number];
+
 export interface ExperienceCertificatePayload {
   position: string;
   startDate: string;        // ISO date
-  endDate?: string;         // optional if still employed
+  // Explicit toggle replaces the old "endDate undefined means still employed"
+  // ambiguity. When true, endDate is ignored at render time.
+  stillEmployed: boolean;
+  endDate?: string;
+  // Why the cert was issued (visa, bank, etc.). Stored as a string so the
+  // freeform "Other" path doesn't need a separate field.
+  reason: string;
   remarks?: string;
 }
 
 export interface HRLetterPayload {
   addressedTo: string;      // "To Whom It May Concern" / specific party
-  purpose: string;          // "Visa application", "Bank loan"
+  purpose: string;          // Picked from ISSUED_DOCUMENT_REASONS or free text
   body: string;
 }
 
@@ -304,6 +322,9 @@ export interface IssuedDocument {
   id: string;
   employeeId: string;
   type: IssuedDocumentType;
+  // Human-readable reference like "SOMION-EC-2026-0042". Generated at issue
+  // time. Optional only for back-compat with older seeded rows.
+  referenceNumber?: string;
   issuedAt: string;
   issuedBy: string;
   subject: string;
