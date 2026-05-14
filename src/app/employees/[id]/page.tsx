@@ -117,6 +117,8 @@ export default async function EmployeeDetailsPage({
             employeeId={employee.id}
             employeeName={employee.name}
             employeeJobTitle={employee.jobTitle}
+            employeeJoinDate={employee.joinDate}
+            employeeStatus={employee.status}
             documents={documents}
           />
           <ProjectsSection projects={projects} />

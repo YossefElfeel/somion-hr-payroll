@@ -694,12 +694,15 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[0].id,
       type: "EXPERIENCE_CERTIFICATE",
+      referenceNumber: "SOMION-EC-2026-0001",
       issuedAt: "2026-04-12T10:30:00Z",
       issuedBy: "Yossef",
       subject: "Experience Certificate — Tahsen Khan",
       payload: {
         position: "Product Designer",
         startDate: "2024-01-02",
+        stillEmployed: true,
+        reason: "New employer reference",
         remarks:
           "Tahsen has been a key contributor to our design team, leading the design system refresh and mentoring junior designers.",
       },
@@ -711,12 +714,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[0].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0001",
       issuedAt: "2026-03-20T14:00:00Z",
       issuedBy: "Yossef",
       subject: "HR Letter — Schengen Visa Application",
       payload: {
         addressedTo: "Embassy of Switzerland, Cairo",
-        purpose: "Schengen visa application for business travel",
+        purpose: "Visa application",
         body:
           "This letter confirms that Tahsen Khan is currently employed at Somion as a Product Designer (full-time, monthly salary 3,000 EGP). The employee is travelling to Switzerland on company business from 15 to 22 May 2026 and will return to their post in Cairo upon completion of the trip. The employee's position is fully funded and will be retained on return.",
       },
@@ -729,12 +733,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[1].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0002",
       issuedAt: "2026-02-14T09:15:00Z",
       issuedBy: "Yossef",
       subject: "HR Letter — Mortgage Application",
       payload: {
         addressedTo: "Barclays Bank, Mortgage Department",
-        purpose: "Mortgage application — employment & salary confirmation",
+        purpose: "Bank / financial application",
         body:
           "This letter confirms that Harry Kane has been employed at Somion as a Senior Sales Executive since 15 March 2022. The current annual salary is 36,000 CHF, paid monthly, and the employment is on a permanent, full-time basis.",
       },
@@ -747,12 +752,15 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[2].id,
       type: "EXPERIENCE_CERTIFICATE",
+      referenceNumber: "SOMION-EC-2026-0002",
       issuedAt: "2026-01-30T11:00:00Z",
       issuedBy: "Yossef",
       subject: "Experience Certificate — Jaman Khan",
       payload: {
         position: "Engineering Manager",
         startDate: "2019-08-01",
+        stillEmployed: true,
+        reason: "General reference",
         remarks:
           "Jaman has built and led our engineering function from a team of two to fifteen, shipping the booking, payments, and notification platforms.",
       },
@@ -765,12 +773,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[3].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0003",
       issuedAt: "2026-03-02T16:45:00Z",
       issuedBy: "Yossef",
       subject: "HR Letter — Rental Application",
       payload: {
         addressedTo: "Foxtons, Lettings — Sheffield",
-        purpose: "Rental application — proof of employment and income",
+        purpose: "Bank / financial application",
         body:
           "This letter confirms that Joe Root is currently employed at Somion as a Senior Software Engineer on a permanent, full-time basis with an annual salary of 42,000 CHF, paid monthly. Employment is not subject to a fixed end date.",
       },
@@ -783,12 +792,15 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[6].id,
       type: "EXPERIENCE_CERTIFICATE",
+      referenceNumber: "SOMION-EC-2025-0001",
       issuedAt: "2025-11-18T13:30:00Z",
       issuedBy: "Yossef",
       subject: "Experience Certificate — David Warner",
       payload: {
         position: "Head of Sales",
         startDate: "2018-11-05",
+        stillEmployed: true,
+        reason: "New employer reference",
         remarks:
           "David has consistently exceeded annual revenue targets and built our enterprise sales motion from the ground up.",
       },
@@ -801,12 +813,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[8].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0004",
       issuedAt: "2026-04-05T08:00:00Z",
       issuedBy: "Yossef",
       subject: "HR Letter — UK Business Visa",
       payload: {
         addressedTo: "UK Visas and Immigration",
-        purpose: "Short-term business visit for conference attendance",
+        purpose: "Visa application",
         body:
           "This letter confirms that Tim David is employed at Somion as a Frontend Engineer (full-time, permanent). The employee will attend the React London conference from 4 to 6 June 2026 on company sponsorship and will return to their post in Singapore immediately afterwards.",
       },
@@ -819,12 +832,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[10].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0005",
       issuedAt: "2026-04-25T10:00:00Z",
       issuedBy: "Yossef",
       subject: "HR Letter — Medical Leave Confirmation",
       payload: {
         addressedTo: "Discovery Health, Cape Town",
-        purpose: "Medical leave confirmation for insurance claim",
+        purpose: "Bank / financial application",
         body:
           "This letter confirms that Pat Gibbs is currently on approved medical leave from Somion, in line with company leave policy. Their position as Office Manager is fully retained, and they are expected to return to their post on 13 November 2025.",
       },
@@ -832,17 +846,21 @@ function build(): Store {
       emailStatus: "SENT",
     },
 
-    // Sara Lin — experience certificate (contractor)
+    // Sara Lin — experience certificate (contractor, ended)
     {
       id: id("doc"),
       employeeId: employees[11].id,
       type: "EXPERIENCE_CERTIFICATE",
+      referenceNumber: "SOMION-EC-2026-0003",
       issuedAt: "2026-04-28T15:00:00Z",
       issuedBy: "Yossef",
       subject: "Experience Certificate — Sara Lin (Contract)",
       payload: {
         position: "Data Analyst (Contract)",
         startDate: "2025-09-15",
+        stillEmployed: false,
+        endDate: "2026-04-15",
+        reason: "New employer reference",
         remarks:
           "Engaged on a fixed-scope contract delivering revenue and operations dashboards. References available on request.",
       },
@@ -855,12 +873,13 @@ function build(): Store {
       id: id("doc"),
       employeeId: employees[5].id,
       type: "HR_LETTER",
+      referenceNumber: "SOMION-HL-2026-0006",
       issuedAt: new Date(Date.now() - 5_000).toISOString(),
       issuedBy: "Yossef",
       subject: "HR Letter — Apartment Lease Renewal",
       payload: {
         addressedTo: "Property Manager — Valencia Apartments",
-        purpose: "Lease renewal — proof of ongoing employment",
+        purpose: "Bank / financial application",
         body:
           "This letter confirms that James Henry is currently employed at Somion as an Operations Analyst on a permanent, full-time basis.",
       },
@@ -1491,6 +1510,22 @@ export const db = {
       .sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1)),
   getIssuedDocument: (docId: string) =>
     s.issuedDocuments.find((d) => d.id === docId) ?? null,
+  // Generate the next reference number for an issued-document type in a given
+  // year. Format: SOMION-{prefix}-{YYYY}-{NNNN}. The counter scans existing
+  // refs of the same (type, year) and adds 1, zero-padded to 4 digits.
+  nextDocumentReference(type: "EXPERIENCE_CERTIFICATE" | "HR_LETTER", year: number): string {
+    const prefix = type === "EXPERIENCE_CERTIFICATE" ? "EC" : "HL";
+    const re = new RegExp(`^SOMION-${prefix}-${year}-(\\d+)$`);
+    const max = s.issuedDocuments.reduce((acc, d) => {
+      if (d.type !== type || !d.referenceNumber) return acc;
+      const m = d.referenceNumber.match(re);
+      if (!m) return acc;
+      const n = parseInt(m[1], 10);
+      return Number.isFinite(n) && n > acc ? n : acc;
+    }, 0);
+    const next = (max + 1).toString().padStart(4, "0");
+    return `SOMION-${prefix}-${year}-${next}`;
+  },
 
   // ── Payslip email status on RunItem ──
   setRunItemPayslipEmailStatus(itemId: string, status: EmailDeliveryStatus) {

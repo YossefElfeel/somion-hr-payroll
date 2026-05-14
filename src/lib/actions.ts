@@ -785,30 +785,152 @@ export async function resendEvaluationEmail(evaluationId: string) {
 
 // ---- Employee details: issued documents (experience cert / HR letter) ----
 
+// Tiny date helper used in both flows for sanity checking. Returns the ISO
+// date for "today" (no time portion) so we can compare against form values
+// that come in as yyyy-mm-dd from <input type="date">.
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function issueExperienceCertificate(input: {
+  employeeId: string;
+  position: string;
+  startDate: string;
+  stillEmployed: boolean;
+  endDate?: string;
+  reason: string;
+  remarks?: string;
+}) {
+  await init();
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+
+  // Validation. Server-side mirrors the modal's checks so a stale tab
+  // can't bypass them.
+  const position = input.position.trim();
+  if (position.length === 0) throw new Error("Position is required");
+  if (!input.startDate) throw new Error("Start date is required");
+  const today = todayIsoDate();
+  if (input.startDate > today) {
+    throw new Error("Start date can't be in the future");
+  }
+  if (!input.stillEmployed) {
+    if (!input.endDate) throw new Error("End date is required when the employee has left");
+    if (input.endDate < input.startDate) {
+      throw new Error("End date can't be before start date");
+    }
+    if (input.endDate > today) {
+      throw new Error("End date can't be in the future");
+    }
+  }
+  const reason = input.reason.trim();
+  if (reason.length === 0) throw new Error("Reason for issuance is required");
+
+  const issuedAt = new Date();
+  const referenceNumber = db.nextDocumentReference(
+    "EXPERIENCE_CERTIFICATE",
+    issuedAt.getUTCFullYear(),
+  );
+
+  const payload: ExperienceCertificatePayload = {
+    position,
+    startDate: input.startDate,
+    stillEmployed: input.stillEmployed,
+    endDate: input.stillEmployed ? undefined : input.endDate,
+    reason,
+    remarks: input.remarks?.trim() || undefined,
+  };
+
+  const doc = db.addIssuedDocument({
+    employeeId: input.employeeId,
+    type: "EXPERIENCE_CERTIFICATE",
+    referenceNumber,
+    issuedAt: issuedAt.toISOString(),
+    issuedBy: actor("HR").actorName,
+    // Subject is auto-derived — no more redundant HR typing.
+    subject: `Experience Certificate — ${emp.name}`,
+    payload,
+    emailedTo: emp.email,
+    emailStatus: "PENDING",
+  });
+  await refresh();
+  void sendDocumentEmail(doc.id).catch((err) =>
+    console.error("[actions] sendDocumentEmail (cert) failed:", err),
+  );
+  return doc;
+}
+
+export async function issueHRLetter(input: {
+  employeeId: string;
+  addressedTo: string;
+  purpose: string;
+  body: string;
+}) {
+  await init();
+  const emp = db.getEmployee(input.employeeId);
+  if (!emp) throw new Error("Employee not found");
+
+  const addressedTo = input.addressedTo.trim();
+  const purpose = input.purpose.trim();
+  const body = input.body.trim();
+  if (addressedTo.length === 0) throw new Error("'Addressed to' is required");
+  if (purpose.length === 0) throw new Error("Purpose is required");
+  if (body.length === 0) throw new Error("Letter body is required");
+
+  const issuedAt = new Date();
+  const referenceNumber = db.nextDocumentReference(
+    "HR_LETTER",
+    issuedAt.getUTCFullYear(),
+  );
+
+  const doc = db.addIssuedDocument({
+    employeeId: input.employeeId,
+    type: "HR_LETTER",
+    referenceNumber,
+    issuedAt: issuedAt.toISOString(),
+    issuedBy: actor("HR").actorName,
+    // HR Letters can have richer/varied subjects, so derive a sensible default
+    // from purpose. Callers don't have to send a subject.
+    subject: `HR Letter — ${purpose} — ${emp.name}`,
+    payload: { addressedTo, purpose, body },
+    emailedTo: emp.email,
+    emailStatus: "PENDING",
+  });
+  await refresh();
+  void sendDocumentEmail(doc.id).catch((err) =>
+    console.error("[actions] sendDocumentEmail (letter) failed:", err),
+  );
+  return doc;
+}
+
+/** @deprecated kept temporarily for old callers; routes to the two new
+ *  specialised actions. Will be removed once the modal split lands. */
 export async function issueDocument(input: {
   employeeId: string;
   type: IssuedDocumentType;
   subject: string;
   payload: ExperienceCertificatePayload | HRLetterPayload;
 }) {
-  await init();
-  const emp = db.getEmployee(input.employeeId);
-  if (!emp) throw new Error("Employee not found");
-  const doc = db.addIssuedDocument({
+  if (input.type === "EXPERIENCE_CERTIFICATE") {
+    const p = input.payload as ExperienceCertificatePayload;
+    return issueExperienceCertificate({
+      employeeId: input.employeeId,
+      position: p.position,
+      startDate: p.startDate,
+      // Old shape: undefined endDate meant "still employed".
+      stillEmployed: p.stillEmployed ?? !p.endDate,
+      endDate: p.endDate,
+      reason: p.reason ?? "General reference",
+      remarks: p.remarks,
+    });
+  }
+  const p = input.payload as HRLetterPayload;
+  return issueHRLetter({
     employeeId: input.employeeId,
-    type: input.type,
-    issuedAt: new Date().toISOString(),
-    issuedBy: actor("HR").actorName,
-    subject: input.subject,
-    payload: input.payload,
-    emailedTo: emp.email,
-    emailStatus: "PENDING",
+    addressedTo: p.addressedTo,
+    purpose: p.purpose,
+    body: p.body,
   });
-  await refresh();
-  void sendDocumentEmail(doc.id).catch((err) =>
-    console.error("[actions] sendDocumentEmail failed:", err),
-  );
-  return doc;
 }
 
 export async function resendDocumentEmail(documentId: string) {

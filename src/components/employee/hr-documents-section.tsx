@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Download, Plus, Send } from "lucide-react";
+import { Download, FileBadge, Mail, Send } from "lucide-react";
 import { resendDocumentEmail } from "@/lib/actions";
 import { useCurrentRole } from "@/components/shell/role-switcher";
 import type { IssuedDocument } from "@/lib/domain/types";
 import { EmployeeSection } from "./section";
 import { EmailStatusBadge } from "./email-status-badge";
-import { IssueDocumentModal } from "./issue-document-modal";
+import { IssueExperienceCertificateModal } from "./issue-experience-certificate-modal";
+import { IssueHRLetterModal } from "./issue-hr-letter-modal";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -29,6 +30,10 @@ interface Props {
   employeeId: string;
   employeeName: string;
   employeeJobTitle?: string;
+  // Used by the cert modal for smart defaults (start date pre-fill, default
+  // "still employed" toggle based on whether status is Inactive).
+  employeeJoinDate?: string;
+  employeeStatus?: string;
   documents: IssuedDocument[];
 }
 
@@ -36,11 +41,16 @@ export function HRDocumentsSection({
   employeeId,
   employeeName,
   employeeJobTitle,
+  employeeJoinDate,
+  employeeStatus,
   documents,
 }: Props) {
   const role = useCurrentRole();
-  const [open, setOpen] = useState(false);
+  // Two separate flags so we never accidentally render both modals.
+  const [certOpen, setCertOpen] = useState(false);
+  const [letterOpen, setLetterOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const canIssue = role === "HR" || role === "ADMIN";
 
   return (
     <>
@@ -48,20 +58,29 @@ export function HRDocumentsSection({
         title="HR Letters & Certificates"
         hint="Experience certificates and HR letters issued by HR to this employee."
         action={
-          role === "HR" || role === "ADMIN" ? (
-            <button
-              onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
-            >
-              <Plus size={12} /> Issue Document
-            </button>
+          canIssue ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setCertOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+              >
+                <FileBadge size={12} /> Experience Cert
+              </button>
+              <button
+                onClick={() => setLetterOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Mail size={12} /> HR Letter
+              </button>
+            </div>
           ) : null
         }
       >
         {documents.length === 0 ? (
           <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-            No documents issued yet. Click <strong>Issue Document</strong> to
-            generate an experience certificate or HR letter for this employee.
+            No documents issued yet. Use{" "}
+            <strong>Experience Cert</strong> or <strong>HR Letter</strong> to
+            issue one — it&apos;s emailed to the employee and listed below.
           </p>
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -70,7 +89,7 @@ export function HRDocumentsSection({
                 <tr>
                   <th className="px-3 py-2">Date issued</th>
                   <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Subject</th>
+                  <th className="px-3 py-2">Subject / Reference</th>
                   <th className="px-3 py-2">Issued by</th>
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2 text-right">Actions</th>
@@ -84,13 +103,20 @@ export function HRDocumentsSection({
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${TYPE_BADGE[d.type]}`}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          TYPE_BADGE[d.type]
+                        }`}
                       >
                         {TYPE_LABEL[d.type]}
                       </span>
                     </td>
-                    <td className="px-3 py-2 font-medium text-slate-900">
-                      {d.subject}
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-slate-900">{d.subject}</div>
+                      {d.referenceNumber && (
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                          {d.referenceNumber}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-700">{d.issuedBy}</td>
                     <td className="px-3 py-2">
@@ -127,12 +153,20 @@ export function HRDocumentsSection({
         )}
       </EmployeeSection>
 
-      <IssueDocumentModal
-        open={open}
-        onClose={() => setOpen(false)}
+      <IssueExperienceCertificateModal
+        open={certOpen}
+        onClose={() => setCertOpen(false)}
         employeeId={employeeId}
         employeeName={employeeName}
         employeeJobTitle={employeeJobTitle}
+        employeeJoinDate={employeeJoinDate}
+        employeeStatus={employeeStatus}
+      />
+      <IssueHRLetterModal
+        open={letterOpen}
+        onClose={() => setLetterOpen(false)}
+        employeeId={employeeId}
+        employeeName={employeeName}
       />
     </>
   );
